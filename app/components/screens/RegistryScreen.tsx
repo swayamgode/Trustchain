@@ -1,19 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { DEMO_CREDENTIALS, type Credential } from "../../lib/data";
+import { type Credential } from "../../lib/data";
+import { useTrustChain } from "../../context/TrustChainContext";
 import { SearchIcon, CopyIcon, ChevronRightIcon, CheckCircleIcon, AlertCircleIcon } from "../ui/Icons";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import StatusBadge from "../ui/StatusBadge";
 
 export default function RegistryScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
+  const { credentials } = useTrustChain();
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Credential | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const allCreds = DEMO_CREDENTIALS;
+  const allCreds = credentials;
   const filtered = allCreds.filter((c) => {
     const matchesTab =
       activeTab === "all" ||

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTrustChain } from "../../context/TrustChainContext";
 import {
   IssueIcon,
   VerifyIcon,
@@ -21,67 +22,52 @@ interface OverviewScreenProps {
   onNavigate: (screen: string) => void;
 }
 
-interface ActivityItem {
-  id: string;
-  title: string;
-  entity: string;
-  did: string;
-  timestamp: string;
-  status: "verified" | "issued" | "under_review" | "revoked" | "onboarded";
-}
-
-const RECENT_ACTIVITIES: ActivityItem[] = [
-  {
-    id: "act-1",
-    title: "Bachelor of Computer Science Issued",
-    entity: "Recipient: Alex Chen (Student ID: MU-2024-8841)",
-    did: "did:trust:cred-2024-MU-00192",
-    timestamp: "12 mins ago",
-    status: "issued",
-  },
-  {
-    id: "act-2",
-    title: "Cross-Institution Verification",
-    entity: "Verifier: Stanford Medical Council • MD License",
-    did: "did:trust:cred-2024-MU-00812",
-    timestamp: "34 mins ago",
-    status: "verified",
-  },
-  {
-    id: "act-3",
-    title: "Tamper Proof Evaluation",
-    entity: "MIT Innovation Labs • Cryptographic Hash Validation",
-    did: "did:trust:cred-2023-MIT-7710",
-    timestamp: "1 hr ago",
-    status: "verified",
-  },
-  {
-    id: "act-4",
-    title: "Revocation Registry Update",
-    entity: "Faculty Board Action • Ticket #112 Misconduct",
-    did: "did:trust:cred-2024-MU-11203",
-    timestamp: "3 hrs ago",
-    status: "revoked",
-  },
-  {
-    id: "act-5",
-    title: "New Institution Node Onboarded",
-    entity: "National Research Foundation • Authorized Keypair Anchor",
-    did: "did:trust:inst-gov-nrf-01",
-    timestamp: "5 hrs ago",
-    status: "onboarded",
-  },
-];
-
 export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
+  const { institutions, credentials, auditEvents, activeInstitution } = useTrustChain();
   const [copiedDid, setCopiedDid] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
+  const [selectedAudit, setSelectedAudit] = useState<any>(null);
 
   const handleCopyDid = () => {
-    navigator.clipboard?.writeText("did:trust:metropolitan-uni-9942");
+    navigator.clipboard?.writeText(activeInstitution.did);
     setCopiedDid(true);
     setTimeout(() => setCopiedDid(false), 2000);
   };
+
+  const activeCount = credentials.filter((c) => c.status === "active").length;
+  const revokedCount = credentials.filter((c) => c.status === "revoked").length;
+
+  const WORKFLOW_STEPS = [
+    {
+      step: "1",
+      title: "Institution Registration",
+      desc: "Register identities & authorized keypairs",
+      screen: "institutions",
+    },
+    {
+      step: "2",
+      title: "Record Issuance",
+      desc: "Cryptographically sign & anchor credentials",
+      screen: "issue",
+    },
+    {
+      step: "3",
+      title: "Cross-Org Verification",
+      desc: "Zero-database signature validation",
+      screen: "verify",
+    },
+    {
+      step: "4",
+      title: "Revocation & Status",
+      desc: "On-chain accumulator revocation checks",
+      screen: "revocation",
+    },
+    {
+      step: "5",
+      title: "Decentralized Auditability",
+      desc: "Independent immutable ledger verification",
+      screen: "audit",
+    },
+  ];
 
   return (
     <div className="p-6 md:p-8 max-w-[1520px] mx-auto space-y-7 animate-fade-in">
@@ -89,13 +75,13 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#E8E9E5]/60">
         <div>
           <div className="text-[13px] font-semibold text-[#626971] tracking-tight">
-            Good morning,
+            Institutional Trust Node • Mainnet
           </div>
           <h1 className="text-[30px] md:text-[34px] font-extrabold text-[#101418] tracking-tight leading-tight mt-0.5">
-            Metropolitan University
+            {activeInstitution.name}
           </h1>
           <p className="text-[14px] text-[#626971] mt-1">
-            Institutional trust infrastructure & credential operations command center.
+            Decentralized institutional trust infrastructure & verifiable credential operations center.
           </p>
         </div>
 
@@ -118,14 +104,53 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
         </div>
       </div>
 
-      {/* 2. Primary Actions: Two Large Horizontal Cards */}
+      {/* 2. Interactive Protocol Workflow Guide (5 Steps) */}
+      <Card className="!p-4 bg-white border border-[#E8E9E5]">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#159447] animate-pulse-node" />
+            <h2 className="text-[13px] font-bold text-[#101418] uppercase tracking-wider">
+              Core Protocol Workflow Tour
+            </h2>
+          </div>
+          <span className="text-[11px] font-semibold text-[#626971]">
+            5 Verifiable Stages • Click any stage to test
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {WORKFLOW_STEPS.map((ws) => (
+            <div
+              key={ws.step}
+              onClick={() => onNavigate(ws.screen)}
+              className="p-3 rounded-[12px] bg-[#F7F7F4] hover:bg-[#EFFBCB] border border-[#E8E9E5] hover:border-[#BEF52A] cursor-pointer interactive flex flex-col justify-between group"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="w-5 h-5 rounded-full bg-[#111410] text-white text-[11px] font-bold flex items-center justify-center">
+                    {ws.step}
+                  </span>
+                  <ArrowRightIcon className="w-3.5 h-3.5 text-[#8A9097] group-hover:text-[#172000] transition-colors" />
+                </div>
+                <div className="font-bold text-[13px] text-[#101418] group-hover:text-[#172000] leading-snug">
+                  {ws.title}
+                </div>
+                <p className="text-[11px] text-[#626971] mt-1 leading-normal">
+                  {ws.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* 3. Primary Actions: Two Large Horizontal Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Issue Credential Card (Primary CTA) */}
+        {/* Issue Credential Card */}
         <div
           onClick={() => onNavigate("issue")}
           className="group relative bg-[#111410] border border-[#111410] hover:border-[#282C27] rounded-[16px] p-6 text-white cursor-pointer interactive shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden"
         >
-          {/* Subtle lime accent glow corner */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#BEF52A]/5 rounded-bl-[100px] pointer-events-none group-hover:bg-[#BEF52A]/10 transition-colors" />
 
           <div className="flex items-start justify-between mb-6">
@@ -133,14 +158,14 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
               <IssueIcon className="w-6 h-6 text-[#BEF52A]" />
             </div>
             <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#BEF52A] text-[#172000]">
-              Primary Action
+              Workflow 2: Record Issuance
             </span>
           </div>
 
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-[20px] font-bold tracking-tight text-white group-hover:text-[#EFFBCB] transition-colors">
-                Issue a Credential
+                Issue a Verifiable Credential
               </h2>
               <div className="w-8 h-8 rounded-full bg-[#282C27] flex items-center justify-center text-white group-hover:bg-[#BEF52A] group-hover:text-[#111410] transition-colors">
                 <ArrowRightIcon className="w-4 h-4" />
@@ -162,59 +187,59 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
               <VerifyIcon className="w-6 h-6 text-[#101418]" />
             </div>
             <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#F2F3EF] text-[#626971]">
-              Cross-Org Verification
+              Workflow 3: Cross-Org Verification
             </span>
           </div>
 
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-[20px] font-bold tracking-tight text-[#101418] group-hover:text-[#1764C0] transition-colors">
-                Verify a Credential
+                Cross-Institution Verification
               </h2>
               <div className="w-8 h-8 rounded-full bg-[#F2F3EF] flex items-center justify-center text-[#101418] group-hover:bg-[#111410] group-hover:text-white transition-colors">
                 <ArrowRightIcon className="w-4 h-4" />
               </div>
             </div>
             <p className="text-[13px] text-[#626971] mt-1.5 leading-relaxed max-w-[420px]">
-              Instant multi-step cryptographic verification: evaluate issuer authority, digital signatures, merkle proofs, and real-time revocation status.
+              Verify credential signatures without database access: validate cryptographic proof, issuer public key, tamper status, and live revocation.
             </p>
           </div>
         </div>
       </div>
 
-      {/* 3. KPI Metrics Row (4 Compact Cards) */}
+      {/* 4. KPI Metrics Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          label="Credentials Issued"
-          value="14,820"
-          trend="+12.4% this month"
+          label="Credentials in Registry"
+          value={credentials.length.toLocaleString()}
+          trend="+12 issued this week"
           trendPositive={true}
           icon={<IssueIcon className="w-4 h-4" />}
           iconBg="bg-[#EFFBCB]"
           iconColor="text-[#172000]"
         />
         <MetricCard
-          label="Credentials Verified"
-          value="48,290"
-          trend="+24.1% this week"
+          label="Registered Institutions"
+          value={institutions.length.toString()}
+          trend="128 active network nodes"
           trendPositive={true}
-          icon={<VerifyIcon className="w-4 h-4" />}
+          icon={<ShieldCheckIcon className="w-4 h-4" />}
           iconBg="bg-[#E6F2FC]"
           iconColor="text-[#1764C0]"
         />
         <MetricCard
-          label="Active Credentials"
-          value="14,685"
-          trend="99.1% integrity rate"
+          label="Active Live Credentials"
+          value={activeCount.toLocaleString()}
+          trend="100% cryptographic integrity"
           trendPositive={true}
-          icon={<ShieldCheckIcon className="w-4 h-4" />}
+          icon={<CheckCircleIcon className="w-4 h-4" />}
           iconBg="bg-[#E8F8E8]"
           iconColor="text-[#159447]"
         />
         <MetricCard
-          label="Needs Attention"
-          value="3"
-          trend="2 pending reviews, 1 revocation"
+          label="Revoked Credentials"
+          value={revokedCount.toString()}
+          trend="On-chain accumulator updated"
           trendPositive={false}
           icon={<AlertCircleIcon className="w-4 h-4" />}
           iconBg="bg-[#FFF0DE]"
@@ -222,76 +247,79 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
         />
       </div>
 
-      {/* 4. Main Two-Column Layout (2.2fr / 1fr) */}
+      {/* 5. Main Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8.5 cols ≈ 2.2fr): Recent Activity */}
+        {/* Left Column (8 cols): Recent Audit Activity */}
         <div className="lg:col-span-8 space-y-6">
           <Card className="!p-0 overflow-hidden">
             <div className="p-5 md:p-6 border-b border-[#E8E9E5] flex items-center justify-between">
               <div>
                 <h3 className="text-[17px] font-bold text-[#101418] tracking-tight">
-                  Recent Activity
+                  Decentralized Audit Stream (Workflow 5)
                 </h3>
                 <p className="text-[13px] text-[#626971] mt-0.5">
-                  Real-time verifiable credential operations and cryptographic audit events.
+                  Live verifiable transaction stream anchored to blockchain blocks.
                 </p>
               </div>
               <button
-                onClick={() => onNavigate("registry")}
+                onClick={() => onNavigate("audit")}
                 className="text-[13px] font-semibold text-[#101418] hover:text-[#1764C0] flex items-center gap-1 transition-colors"
               >
-                <span>View all</span>
+                <span>View Full Ledger</span>
                 <ChevronRightIcon className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Activity Table Rows */}
             <div className="divide-y divide-[#E8E9E5]">
-              {RECENT_ACTIVITIES.map((act) => (
+              {auditEvents.slice(0, 5).map((act) => (
                 <div
                   key={act.id}
-                  onClick={() => setSelectedActivity(act)}
+                  onClick={() => setSelectedAudit(act)}
                   className="p-4 md:px-6 hover:bg-[#F7F7F4] cursor-pointer transition-colors flex items-center justify-between gap-4"
                 >
                   <div className="flex items-start gap-3.5 min-w-0">
                     <div
                       className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 mt-0.5 ${
-                        act.status === "verified"
+                        act.outcome === "success"
                           ? "bg-[#E8F8E8] text-[#159447]"
-                          : act.status === "issued"
-                          ? "bg-[#E6F2FC] text-[#1764C0]"
-                          : act.status === "revoked"
+                          : act.outcome === "rejected"
                           ? "bg-[#FDEAE7] text-[#C0392B]"
                           : "bg-[#EFFBCB] text-[#172000]"
                       }`}
                     >
-                      {act.status === "verified" ? (
+                      {act.outcome === "success" ? (
                         <CheckCircleIcon className="w-4 h-4" />
-                      ) : act.status === "revoked" ? (
-                        <AlertCircleIcon className="w-4 h-4" />
                       ) : (
-                        <IssueIcon className="w-4 h-4" />
+                        <AlertCircleIcon className="w-4 h-4" />
                       )}
                     </div>
 
                     <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-[#101418] truncate">
-                        {act.title}
+                      <div className="text-[14px] font-semibold text-[#101418] truncate capitalize">
+                        {act.type.replace(/_/g, " ")}
                       </div>
                       <div className="text-[12px] text-[#626971] truncate mt-0.5">
-                        {act.entity}
+                        {act.related}
                       </div>
                       <div className="text-[11px] font-mono text-[#8A9097] truncate mt-0.5">
-                        {act.did}
+                        Actor: {act.actor} • Tx: {act.txRef.slice(0, 14)}...
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right hidden sm:block">
-                      <StatusBadge status={act.status} />
+                      <span
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          act.outcome === "success"
+                            ? "bg-[#E8F8E8] text-[#159447]"
+                            : "bg-[#FFF0DE] text-[#B95B12]"
+                        }`}
+                      >
+                        {act.outcome.toUpperCase()}
+                      </span>
                       <div className="text-[11px] text-[#8A9097] mt-1">
-                        {act.timestamp}
+                        {act.timestamp.split(" ")[1] || act.timestamp}
                       </div>
                     </div>
                     <button
@@ -307,21 +335,21 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
           </Card>
         </div>
 
-        {/* Right Rail (4 cols ≈ 1fr): Your Institution, Pending Actions, Network Status */}
+        {/* Right Rail (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
-          {/* 1. Your Institution Card */}
+          {/* Your Institution Card */}
           <Card>
             <div className="flex items-start justify-between pb-4 border-b border-[#E8E9E5]">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-[14px] bg-[#EFFBCB] border border-[#BEF52A] flex items-center justify-center text-[#172000] font-black text-lg">
-                  MU
+                  {activeInstitution.name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
                   <h3 className="text-[15px] font-bold text-[#101418] leading-tight">
-                    Metropolitan University
+                    {activeInstitution.name}
                   </h3>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <StatusBadge status="verified" label="Authorized Issuer" />
+                    <StatusBadge status="verified" label="Workflow 1: Registered Node" />
                   </div>
                 </div>
               </div>
@@ -334,7 +362,7 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
                   Decentralized Identifier (DID)
                 </div>
                 <div className="text-[12px] font-mono font-medium text-[#101418] truncate">
-                  did:trust:metropolitan-uni-9942
+                  {activeInstitution.did}
                 </div>
               </div>
               <button
@@ -351,19 +379,19 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
             <div className="mt-4 space-y-2.5 text-[13px]">
               <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
                 <span className="text-[#626971]">Institution Type</span>
-                <span className="font-semibold text-[#101418]">Higher Education</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
-                <span className="text-[#626971]">Jurisdiction / Location</span>
-                <span className="font-semibold text-[#101418]">Boston, MA, USA</span>
+                <span className="font-semibold text-[#101418]">{activeInstitution.type}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
                 <span className="text-[#626971]">Authorized Signers</span>
-                <span className="font-semibold text-[#101418]">8 Authorized Issuers</span>
+                <span className="font-semibold text-[#101418]">{activeInstitution.issuerCount} Keys</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
+                <span className="text-[#626971]">Registry Status</span>
+                <span className="font-semibold text-[#159447]">Anchored on Ledger</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-[#626971]">Registry Member Since</span>
-                <span className="font-semibold text-[#101418]">October 2023</span>
+                <span className="text-[#626971]">Registration Date</span>
+                <span className="font-semibold text-[#101418]">{activeInstitution.registrationDate}</span>
               </div>
             </div>
 
@@ -372,19 +400,19 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
                 onClick={() => onNavigate("institutions")}
                 className="w-full text-center text-[13px] font-semibold text-[#101418] hover:text-[#1764C0] transition-colors"
               >
-                Manage Institution Details →
+                Manage Institutions & Signers →
               </button>
             </div>
           </Card>
 
-          {/* 2. Pending Actions Card */}
+          {/* Pending Actions */}
           <Card>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[15px] font-bold text-[#101418] tracking-tight">
                 Pending Actions
               </h3>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#FFF0DE] text-[#B95B12] border border-[#FFE0BA]">
-                3 items
+                {revokedCount > 0 ? "Review Required" : "All Clear"}
               </span>
             </div>
 
@@ -395,10 +423,10 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
               >
                 <div>
                   <div className="text-[13px] font-semibold text-[#101418]">
-                    Cross-Org Verification Request
+                    Workflow 3: Cross-Org Verification
                   </div>
                   <div className="text-[11px] text-[#626971] mt-0.5">
-                    Harvard Alliance requested student transcript confirmation
+                    Test verification without database access
                   </div>
                 </div>
                 <ChevronRightIcon className="w-4 h-4 text-[#8A9097] shrink-0 ml-2" />
@@ -410,25 +438,10 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
               >
                 <div>
                   <div className="text-[13px] font-semibold text-[#101418]">
-                    Revocation Approval Queued
+                    Workflow 4: Revocation Management
                   </div>
                   <div className="text-[11px] text-[#626971] mt-0.5">
-                    Faculty Board flagged credential #MU-11203 for review
-                  </div>
-                </div>
-                <ChevronRightIcon className="w-4 h-4 text-[#8A9097] shrink-0 ml-2" />
-              </div>
-
-              <div
-                onClick={() => onNavigate("institutions")}
-                className="p-3 rounded-[12px] bg-[#F7F7F4] hover:bg-[#F2F3EF] cursor-pointer transition-colors border border-[#E8E9E5] flex items-center justify-between"
-              >
-                <div>
-                  <div className="text-[13px] font-semibold text-[#101418]">
-                    Key Rotation Scheduled
-                  </div>
-                  <div className="text-[11px] text-[#626971] mt-0.5">
-                    Primary ED25519 signing key due for 180-day rotation
+                    Revoke credentials & check accumulator
                   </div>
                 </div>
                 <ChevronRightIcon className="w-4 h-4 text-[#8A9097] shrink-0 ml-2" />
@@ -436,13 +449,13 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
             </div>
           </Card>
 
-          {/* 3. Network Status Card */}
+          {/* Network Status */}
           <Card>
             <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#E8E9E5]">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#159447] animate-pulse-node" />
                 <h3 className="text-[14px] font-bold text-[#101418]">
-                  Network Status: Operational
+                  Trust Network: Operational
                 </h3>
               </div>
               <StatusBadge status="healthy" label="99.98% Uptime" />
@@ -454,88 +467,60 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
                 <span className="font-semibold text-[#101418]">128 validator nodes</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-[#626971]">Cryptographic Consensus</span>
-                <span className="font-semibold text-[#101418]">Byzantine Fault Tolerant</span>
+                <span className="text-[#626971]">Audit Block Finality</span>
+                <span className="font-semibold text-[#101418]">Immutable BFT Consensus</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-[#626971]">Revocation Accumulator</span>
-                <span className="font-semibold text-[#101418]">Sync: Block #1,402,881</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-[#626971]">Avg Verification Latency</span>
-                <span className="font-semibold text-[#101418]">38 ms</span>
+                <span className="text-[#626971]">Revocation Latency</span>
+                <span className="font-semibold text-[#101418]">Instantaneous Propagation</span>
               </div>
             </div>
           </Card>
         </div>
       </div>
 
-      {/* Modal Detail for Selected Activity */}
-      {selectedActivity && (
+      {/* Audit Detail Modal */}
+      {selectedAudit && (
         <div className="fixed inset-0 bg-[#101418]/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-[20px] max-w-lg w-full p-6 shadow-2xl border border-[#E8E9E5]">
             <div className="flex items-center justify-between pb-4 border-b border-[#E8E9E5]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-[8px] bg-[#EFFBCB] text-[#172000] flex items-center justify-center font-bold">
-                  MU
-                </div>
-                <h3 className="text-[16px] font-bold text-[#101418]">
-                  Cryptographic Audit Record
-                </h3>
-              </div>
+              <h3 className="text-[16px] font-bold text-[#101418]">
+                Audit Record Proof
+              </h3>
               <button
-                onClick={() => setSelectedActivity(null)}
+                onClick={() => setSelectedAudit(null)}
                 className="w-8 h-8 rounded-full hover:bg-[#F2F3EF] flex items-center justify-center text-[#626971]"
               >
                 ✕
               </button>
             </div>
-
             <div className="mt-4 space-y-3 text-[13px]">
               <div>
                 <span className="text-[#8A9097] text-[11px] uppercase font-bold tracking-wider">
-                  Operation
+                  Event
                 </span>
-                <div className="font-semibold text-[#101418] text-[15px] mt-0.5">
-                  {selectedActivity.title}
+                <div className="font-semibold text-[#101418] capitalize mt-0.5">
+                  {selectedAudit.type.replace(/_/g, " ")}
                 </div>
               </div>
-
               <div>
                 <span className="text-[#8A9097] text-[11px] uppercase font-bold tracking-wider">
-                  Associated Entity
+                  Details
                 </span>
-                <div className="text-[#101418] mt-0.5">{selectedActivity.entity}</div>
+                <div className="text-[#101418] mt-0.5">{selectedAudit.related}</div>
               </div>
-
               <div>
                 <span className="text-[#8A9097] text-[11px] uppercase font-bold tracking-wider">
-                  Cryptographic Identifier (DID)
+                  Transaction Hash
                 </span>
                 <div className="font-mono text-[12px] bg-[#F7F7F4] p-2 rounded-[8px] border border-[#E8E9E5] text-[#101418] break-all mt-0.5">
-                  {selectedActivity.did}
+                  {selectedAudit.txRef}
                 </div>
               </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-[#626971]">Current Status:</span>
-                <StatusBadge status={selectedActivity.status} />
-              </div>
             </div>
-
-            <div className="mt-6 pt-4 border-t border-[#E8E9E5] flex justify-end gap-2.5">
-              <Button variant="secondary" size="sm" onClick={() => setSelectedActivity(null)}>
+            <div className="mt-6 pt-4 border-t border-[#E8E9E5] flex justify-end">
+              <Button variant="secondary" size="sm" onClick={() => setSelectedAudit(null)}>
                 Close
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setSelectedActivity(null);
-                  onNavigate("verify");
-                }}
-              >
-                Verify on Trust Registry
               </Button>
             </div>
           </div>

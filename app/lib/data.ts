@@ -42,6 +42,8 @@ export interface Credential {
   revocationDate?: string;
   revocationReason?: string;
   did: string;
+  documentImage?: string;
+  documentImageHash?: string;
 }
 
 export interface AuditEvent {

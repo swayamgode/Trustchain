@@ -1,47 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { DEMO_CREDENTIALS } from "../../lib/data";
-import { AlertCircleIcon, CheckCircleIcon, ShieldCheckIcon } from "../ui/Icons";
+import { useTrustChain } from "../../context/TrustChainContext";
+import { AlertCircleIcon, CheckCircleIcon, ShieldCheckIcon, ArrowRightIcon } from "../ui/Icons";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import StatusBadge from "../ui/StatusBadge";
 
-const REVOCATION_EVENTS = [
-  {
-    id: "rev-001",
-    credentialId: "did:trust:cred-2024-MU-11203",
-    type: "Internship Certificate",
-    issuer: "Metropolitan University Faculty Board",
-    reason: "Academic Honor Violation (Ticket #112)",
-    date: "2024-10-12",
-    txRef: "0x88f2a1b94c3d8271",
-  },
-  {
-    id: "rev-002",
-    credentialId: "did:trust:cred-2024-DLA-03321",
-    type: "Course Completion Certificate",
-    issuer: "Digital Learning Authority",
-    reason: "Administrative re-issuance with updated grade record",
-    date: "2024-09-28",
-    txRef: "0xf3e2d1c0b9a8f7e6",
-  },
-  {
-    id: "rev-003",
-    credentialId: "did:trust:cred-2024-WIT-00441",
-    type: "Academic Degree B.A.",
-    issuer: "Western Institute of Technology",
-    reason: "Enrollment criteria discrepancy confirmed by registry",
-    date: "2024-09-14",
-    txRef: "0xe7d6c5b4a3f2e1d0",
-  },
-];
-
 export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen: string) => void } = {}) {
+  const { credentials, revokeCredential, auditEvents } = useTrustChain();
   const [showConfirm, setShowConfirm] = useState(false);
   const [targetCredId, setTargetCredId] = useState("");
   const [reason, setReason] = useState("");
   const [revokedSuccess, setRevokedSuccess] = useState(false);
+
+  const activeCredentials = credentials.filter((c) => c.status === "active");
+  const revokedCredentials = credentials.filter((c) => c.status === "revoked");
 
   const handleRevoke = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,13 +24,11 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
   };
 
   const confirmRevocation = () => {
+    const ok = revokeCredential(targetCredId, reason);
     setShowConfirm(false);
-    setRevokedSuccess(true);
-    setTimeout(() => {
-      setRevokedSuccess(false);
-      setTargetCredId("");
-      setReason("");
-    }, 4000);
+    if (ok) {
+      setRevokedSuccess(true);
+    }
   };
 
   return (
@@ -64,11 +36,16 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#E8E9E5]">
         <div>
-          <h1 className="text-[28px] font-extrabold text-[#101418] tracking-tight">
-            Revocation Registry & Lifecycle
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-bold uppercase tracking-wider text-[#C0392B] bg-[#FDEAE7] px-2.5 py-0.5 rounded-full">
+              Workflow Step 4: Revocation & Status Verification
+            </span>
+          </div>
+          <h1 className="text-[28px] font-extrabold text-[#101418] tracking-tight mt-1">
+            Revocation Registry & Status Manager
           </h1>
           <p className="text-[14px] text-[#626971]">
-            Cryptographic revocation accumulator management. Revocations propagate instantaneously to all verifying institutions.
+            Revoke institutional records on-chain. Revocations propagate instantaneously to all verifiers through dynamic cryptographic accumulators.
           </p>
         </div>
 
@@ -80,20 +57,35 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
       </div>
 
       {revokedSuccess && (
-        <div className="p-4 rounded-[14px] bg-[#E8F8E8] border border-[#CEF0CE] text-[#159447] flex items-center justify-between animate-fade-in">
+        <div className="p-5 rounded-[14px] bg-[#E8F8E8] border border-[#CEF0CE] text-[#159447] flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
           <div className="flex items-center gap-2.5">
-            <CheckCircleIcon className="w-5 h-5" />
-            <span className="text-[14px] font-bold">
-              Credential successfully revoked on-chain and added to the cryptographic accumulator.
-            </span>
+            <CheckCircleIcon className="w-5 h-5 shrink-0" />
+            <div>
+              <span className="text-[14px] font-bold">
+                Credential {targetCredId} successfully revoked on-chain!
+              </span>
+              <p className="text-[12px] opacity-90 mt-0.5">
+                Revocation accumulator updated. External verifiers will now detect and reject this credential.
+              </p>
+            </div>
           </div>
+          {onNavigate && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onNavigate("verify")}
+              className="shrink-0"
+            >
+              Verify Revoked Status Now →
+            </Button>
+          )}
         </div>
       )}
 
       {/* Main Grid: Action Form + Event History */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Revoke Form */}
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-5 space-y-4">
           <Card className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-[#E8E9E5]">
               <div className="w-8 h-8 rounded-[8px] bg-[#FDEAE7] text-[#C0392B] flex items-center justify-center font-bold">
@@ -105,27 +97,40 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
             </div>
 
             <p className="text-[12px] text-[#626971]">
-              Revocation is an irreversible cryptographic operation. Once anchored, verifiers worldwide will reject proofs for this credential.
+              Select an active credential below or input an identifier. Revocation is cryptographically irreversible.
             </p>
 
             <form onSubmit={handleRevoke} className="space-y-3.5">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-[#626971] mb-1">
-                  Credential ID or DID
+                  Active Credential Target
                 </label>
+                <select
+                  value={targetCredId}
+                  onChange={(e) => setTargetCredId(e.target.value)}
+                  className="w-full h-[40px] px-3 rounded-[8px] bg-[#F7F7F4] border border-[#E8E9E5] text-[13px] text-[#101418] focus:bg-white focus:outline-none mb-1.5"
+                >
+                  <option value="">Select an active credential...</option>
+                  {activeCredentials.slice(0, 10).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.type} — {c.subjectName} ({c.id})
+                    </option>
+                  ))}
+                </select>
+
                 <input
                   type="text"
                   required
                   value={targetCredId}
                   onChange={(e) => setTargetCredId(e.target.value)}
-                  placeholder="e.g. did:trust:cred-2024-MU-00192"
+                  placeholder="Or enter DID / ID (e.g. did:trust:cred-...)"
                   className="w-full h-[40px] px-3.5 rounded-[8px] bg-[#F7F7F4] border border-[#E8E9E5] text-[13px] font-mono text-[#101418] focus:bg-white focus:outline-none focus:border-[#C0392B]"
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-[#626971] mb-1">
-                  Reason for Revocation
+                  Verified Institutional Reason
                 </label>
                 <select
                   value={reason}
@@ -133,7 +138,7 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
                   required
                   className="w-full h-[40px] px-3.5 rounded-[8px] bg-[#F7F7F4] border border-[#E8E9E5] text-[13px] text-[#101418] focus:bg-white focus:outline-none"
                 >
-                  <option value="">Select verified institutional reason...</option>
+                  <option value="">Select verified reason...</option>
                   <option value="Academic Misconduct / Honor Violation">Academic Misconduct / Honor Violation</option>
                   <option value="Administrative Re-issuance">Administrative Re-issuance</option>
                   <option value="Licensing Disciplinary Action">Licensing Disciplinary Action</option>
@@ -155,22 +160,22 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
           </Card>
         </div>
 
-        {/* Revocation Events Log */}
+        {/* Revoked Credentials & Ledger Proofs */}
         <div className="lg:col-span-7">
           <Card className="!p-0 overflow-hidden">
             <div className="p-4 border-b border-[#E8E9E5] flex items-center justify-between">
               <div>
                 <h3 className="text-[16px] font-bold text-[#101418]">
-                  Historical Revocation Events
+                  Revoked Credentials Ledger ({revokedCredentials.length})
                 </h3>
                 <p className="text-[12px] text-[#626971]">
-                  Immutable ledger entries verified by 128 network nodes.
+                  Immutable revocation accumulator entries verified across all network nodes.
                 </p>
               </div>
             </div>
 
             <div className="divide-y divide-[#E8E9E5]">
-              {REVOCATION_EVENTS.map((rev) => (
+              {revokedCredentials.map((rev) => (
                 <div key={rev.id} className="p-4 hover:bg-[#F7F7F4] transition-colors space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-[#101418] text-[14px]">
@@ -178,15 +183,18 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
                     </span>
                     <StatusBadge status="revoked" />
                   </div>
-                  <div className="text-[12px] font-mono text-[#8A9097]">
-                    {rev.credentialId}
+                  <div className="text-[12px] text-[#101418]">
+                    Subject: <strong>{rev.subjectName}</strong>
                   </div>
-                  <div className="text-[12px] text-[#626971]">
-                    <strong>Reason:</strong> {rev.reason}
+                  <div className="text-[11px] font-mono text-[#8A9097]">
+                    {rev.did || rev.id}
+                  </div>
+                  <div className="text-[12px] text-[#C0392B]">
+                    <strong>Reason:</strong> {rev.revocationReason || "Academic Disciplinary Action"}
                   </div>
                   <div className="flex justify-between text-[11px] text-[#8A9097] pt-1 border-t border-[#E8E9E5]/60">
-                    <span>Issuer: {rev.issuer}</span>
-                    <span>{rev.date}</span>
+                    <span>Issuer: {rev.issuingInstitution}</span>
+                    <span>Revoked Date: {rev.revocationDate || rev.issueDate}</span>
                   </div>
                 </div>
               ))}
@@ -207,7 +215,10 @@ export default function RevocationScreen({ onNavigate }: { onNavigate?: (screen:
               Confirm Permanent Revocation
             </h3>
             <p className="text-[13px] text-[#626971]">
-              Are you sure you want to revoke credential <strong className="font-mono text-[#101418]">{targetCredId}</strong>? This action is permanently anchored to the TrustChain network.
+              Are you sure you want to revoke credential <strong className="font-mono text-[#101418]">{targetCredId}</strong>?
+            </p>
+            <p className="text-[12px] text-[#C0392B] bg-[#FDEAE7] p-2.5 rounded-[8px]">
+              Reason: {reason}
             </p>
 
             <div className="flex gap-3 justify-center pt-2">

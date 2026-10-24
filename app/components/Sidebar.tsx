@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   NetworkIcon,
   ShieldCheckIcon,
+  AuditIcon,
 } from "./ui/Icons";
 
 interface SidebarProps {
@@ -20,12 +21,14 @@ interface SidebarProps {
 export default function Sidebar({ activeScreen, onNavigate }: SidebarProps) {
   const navItems = [
     { id: "overview", label: "Overview", icon: OverviewIcon },
-    { id: "verify", label: "Verify Credential", icon: VerifyIcon },
-    { id: "issue", label: "Issue Credential", icon: IssueIcon },
-    { id: "registry", label: "Credentials", icon: CredentialsIcon, badge: "14.8k" },
-    { id: "institutions", label: "Institutions", icon: InstitutionsIcon },
-    { id: "revocation", label: "Revocation", icon: RevocationIcon },
-    { id: "network", label: "Trust Network", icon: NetworkIcon },
+    { id: "issue", label: "College Issuance", icon: IssueIcon },
+    { id: "student", label: "Student Portal (QR)", icon: CredentialsIcon, badge: "QR" },
+    { id: "verify", label: "Recruiter Verification", icon: VerifyIcon },
+    { id: "registry", label: "Credentials Registry", icon: CredentialsIcon },
+    { id: "institutions", label: "Institutions & Keys", icon: InstitutionsIcon },
+    { id: "revocation", label: "Revocation Registry", icon: RevocationIcon },
+    { id: "audit", label: "Blockchain Audit", icon: AuditIcon },
+    { id: "network", label: "Decentralized Network", icon: NetworkIcon },
     { id: "settings", label: "Settings", icon: SettingsIcon },
   ];
 
