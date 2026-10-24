@@ -24,6 +24,15 @@ interface CertificateCardProps {
   showInspectButton?: boolean;
 }
 
+function getCertificateImageSrc(url?: string): string {
+  if (!url) return "/lead_certificate_bg.jpg";
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
+  }
+  return url;
+}
+
 export default function CertificateCard({
   cert,
   verificationUrl,
@@ -44,11 +53,27 @@ export default function CertificateCard({
           /* 1. ACTUAL ORIGINAL ISSUED CERTIFICATE PHOTOCOPY */
           <div className="relative w-full h-full flex items-center justify-center">
             <img
-              src={cert.documentImage}
+              src={getCertificateImageSrc(cert.documentImage)}
               alt={cert.type || "Official Issued Certificate"}
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
+              onError={(e) => {
+                e.currentTarget.src = "/lead_certificate_bg.jpg";
+              }}
             />
+
+            {/* Top-Left Open on Drive Button if drive link */}
+            {cert.documentImage?.includes("drive.google.com") && (
+              <a
+                data-html2canvas-ignore="true"
+                href={cert.documentImage}
+                target="_blank"
+                rel="noreferrer"
+                className="absolute top-3.5 left-3.5 z-20 bg-white/95 hover:bg-white text-[#101418] text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all"
+              >
+                <span>📁 Original on Drive ↗</span>
+              </a>
+            )}
 
             {/* Top-Right Pill Inspect Button */}
             {showInspectButton && (

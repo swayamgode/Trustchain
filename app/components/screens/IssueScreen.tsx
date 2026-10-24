@@ -136,22 +136,81 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
   };
 
   const parseCsvRows = (text: string): BulkRecordInput[] => {
-    return text
+    const rawLines = text
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => {
-        const parts = line.split(",").map((p) => p.trim());
-        return {
-          subjectName: parts[0] || "Unknown Student",
-          subjectId: parts[1] || `did:trust:student-${Math.floor(1000 + Math.random() * 9000)}`,
-          title: parts[2] || "Institutional Degree",
-          department: parts[3] || "Academic Affairs",
-          gpa: parts[4] || "3.80",
-          honours: parts[5] || "Honors",
-          documentImage: bulkImage,
+      .filter((line) => line.length > 0);
+
+    if (rawLines.length === 0) return [];
+
+    const firstLine = rawLines[0].toLowerCase();
+    const hasHeader =
+      firstLine.includes("name") ||
+      firstLine.includes("student_id") ||
+      firstLine.includes("course");
+
+    const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
+    const headerCols = hasHeader
+      ? rawLines[0].split(",").map((c) => c.trim().toLowerCase())
+      : [];
+
+    return dataLines.map((line, idx) => {
+      const parts = line.split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
+
+      if (hasHeader) {
+        const getCol = (...names: string[]) => {
+          for (const name of names) {
+            const index = headerCols.findIndex((h) => h === name || h.includes(name));
+            if (index !== -1 && parts[index] !== undefined && parts[index] !== "") {
+              return parts[index];
+            }
+          }
+          return "";
         };
-      });
+
+        const studentId = getCol("student_id", "id", "did") || `MU2026${100 + idx}`;
+        const name = getCol("name", "student_name") || `Student ${idx + 1}`;
+        const course = getCol("course", "degree", "title") || "Academic Degree";
+        const semester = getCol("semester", "sem");
+        const percentage = getCol("percentage", "percent");
+        const marksObtained = getCol("marks_obtained", "marks");
+        const maxMarks = getCol("maximum_marks", "max");
+        const marksheet = getCol("marksheet_file", "file", "url", "image") || bulkImage;
+
+        const title = semester ? `${course} — Semester ${semester}` : course;
+        const gpa = percentage
+          ? `${percentage}%${marksObtained && maxMarks ? ` (${marksObtained}/${maxMarks})` : ""}`
+          : "3.80 / 4.00";
+        const honours =
+          percentage && parseFloat(percentage) >= 75
+            ? "Distinction Honours"
+            : percentage && parseFloat(percentage) >= 60
+            ? "First Class Honours"
+            : "Honours";
+
+        return {
+          subjectName: name,
+          subjectId: studentId.startsWith("did:trust:")
+            ? studentId
+            : `did:trust:student-${studentId.toLowerCase()}`,
+          title,
+          department: `School of ${course} & Applied Sciences`,
+          gpa,
+          honours,
+          documentImage: marksheet,
+        };
+      }
+
+      return {
+        subjectName: parts[0] || "Unknown Student",
+        subjectId: parts[1] || `did:trust:student-${Math.floor(1000 + Math.random() * 9000)}`,
+        title: parts[2] || "Institutional Degree",
+        department: parts[3] || "Academic Affairs",
+        gpa: parts[4] || "3.80",
+        honours: parts[5] || "Honors",
+        documentImage: parts[6] || bulkImage,
+      };
+    });
   };
 
   const parsedBulkRows = parseCsvRows(csvText);
@@ -166,7 +225,10 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
       if (p >= 100) {
         clearInterval(interval);
         const results = issueBulkCredentials(
-          parsedBulkRows.map((r) => ({ ...r, documentImage: bulkImage }))
+          parsedBulkRows.map((r) => ({
+            ...r,
+            documentImage: r.documentImage || bulkImage,
+          }))
         );
         setBulkIssuedResults(results);
         setBulkSigning(false);
@@ -361,8 +423,8 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                       <th className="py-2.5 px-4">Student ID / DID</th>
                       <th className="py-2.5 px-4">Degree / Certificate</th>
                       <th className="py-2.5 px-4">Faculty</th>
-                      <th className="py-2.5 px-4">GPA</th>
-                      <th className="py-2.5 px-4">Honours</th>
+                      <th className="py-2.5 px-4">GPA / Marks</th>
+                      <th className="py-2.5 px-4">Marksheet Document</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E9E5]">
@@ -373,7 +435,21 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                         <td className="py-2.5 px-4 text-[#101418]">{r.title}</td>
                         <td className="py-2.5 px-4 text-[#626971]">{r.department}</td>
                         <td className="py-2.5 px-4 font-semibold text-[#159447]">{r.gpa}</td>
-                        <td className="py-2.5 px-4 text-[#626971]">{r.honours}</td>
+                        <td className="py-2.5 px-4">
+                          {r.documentImage?.startsWith("http") ? (
+                            <a
+                              href={r.documentImage}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#1764C0] hover:underline font-mono text-[11px] inline-flex items-center gap-1 bg-[#EBF3FC] px-2 py-0.5 rounded-[6px]"
+                            >
+                              <span>Drive File</span>
+                              <span>↗</span>
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-[#8A9097]">Template Image</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

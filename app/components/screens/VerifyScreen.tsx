@@ -414,10 +414,33 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
                   <div className="space-y-1.5">
                     <div className="text-[12px] font-bold text-[#626971] flex items-center justify-between">
                       <span>Official Trust Registry Record</span>
-                      <span className="text-[11px] font-mono text-[#8A9097]">{result.expectedHash?.slice(0, 14)}...</span>
+                      {result.documentImage.includes("drive.google.com") ? (
+                        <a
+                          href={result.documentImage}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#1764C0] hover:underline font-mono text-[11px] inline-flex items-center gap-1 bg-[#EBF3FC] px-2 py-0.5 rounded-[6px]"
+                        >
+                          <span>Drive File</span>
+                          <span>↗</span>
+                        </a>
+                      ) : (
+                        <span className="text-[11px] font-mono text-[#8A9097]">{result.expectedHash?.slice(0, 14)}...</span>
+                      )}
                     </div>
                     <div className="rounded-[12px] overflow-hidden border border-[#D9DCD5] max-h-64 bg-white flex items-center justify-center">
-                      <img src={result.documentImage} alt="Original certificate on record" className="w-full object-contain max-h-64" />
+                      <img
+                        src={
+                          result.documentImage.includes("/d/")
+                            ? `https://drive.google.com/thumbnail?id=${result.documentImage.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]}&sz=w1600`
+                            : result.documentImage
+                        }
+                        alt="Original certificate on record"
+                        className="w-full object-contain max-h-64"
+                        onError={(e) => {
+                          e.currentTarget.src = "/lead_certificate_bg.jpg";
+                        }}
+                      />
                     </div>
                   </div>
                 )}
