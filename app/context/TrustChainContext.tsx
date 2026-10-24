@@ -73,16 +73,29 @@ interface TrustChainContextType {
   }) => Credential;
   issueBulkCredentials: (records: BulkRecordInput[]) => Credential[];
   revokeCredential: (credentialId: string, reason: string) => boolean;
-  verifyCredential: (identifierOrDid: string, tamperedData?: { subjectName?: string; gpa?: string; title?: string }) => {
+  verifyCredential: (identifierOrDid: string, uploadedImageHash?: string) => {
     credential?: Credential;
     isAuthentic: boolean;
     isRevoked: boolean;
     isTampered: boolean;
+    imageTampered?: boolean;
     issuerAuthorized: boolean;
     computedHash: string;
     expectedHash: string;
     checks: { name: string; status: "pass" | "fail"; detail: string }[];
   };
+  verifyCredentialAsync: (identifierOrDid: string, uploadedImageHash?: string) => Promise<{
+    credential?: Credential;
+    isAuthentic: boolean;
+    isRevoked: boolean;
+    isTampered: boolean;
+    imageTampered?: boolean;
+    issuerAuthorized: boolean;
+    computedHash: string;
+    expectedHash: string;
+    checks: { name: string; status: "pass" | "fail"; detail: string }[];
+  }>;
+  updateCredentialImageHash: (credentialId: string, imageHash: string) => Promise<boolean>;
 }
 
 const INITIAL_INSTITUTIONS: Institution[] = [
@@ -144,6 +157,30 @@ const INITIAL_ISSUERS: Issuer[] = [
   },
 ];
 
+export function computeCredentialHash(cred: {
+  id: string;
+  type: string;
+  issuingInstitution: string;
+  subjectId: string;
+  subjectName: string;
+  issueDate: string;
+}): string {
+  const payload = JSON.stringify({
+    id: cred.id,
+    type: cred.type,
+    issuingInstitution: cred.issuingInstitution,
+    subjectId: cred.subjectId,
+    subjectName: cred.subjectName,
+    issueDate: cred.issueDate,
+  });
+  let hashVal = 5381;
+  for (let i = 0; i < payload.length; i++) {
+    hashVal = ((hashVal << 5) + hashVal) ^ payload.charCodeAt(i);
+    hashVal = hashVal >>> 0;
+  }
+  return `0x${hashVal.toString(16).padStart(8, "0")}${Array.from({ length: 24 }, (_, i) => ((hashVal ^ (i * 2654435761)) >>> 0).toString(16).padStart(8, "0")).join("")}`;
+}
+
 const INITIAL_CREDENTIALS: Credential[] = [
   {
     id: "cred-2024-LEAD-08819",
@@ -154,7 +191,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     subjectName: "Bhavik Jain",
     issueDate: "2024-02-18",
     status: "active",
-    fingerprint: "0x7f9a2e4b6c8d0e1f3a5b7c9d1e3f5a7b8c2d1e9f7a6b4c2d1e9f7a6b4c2d1e9f",
+    fingerprint: "0x5442660954426609ca751fb8682c956b8ee40b1a2c9f80cd4357067ce10ebc2f07c635dea5f9ab81dbb121307a68a6e398205c923edbd2455c934bf4f34ac1a711024756b735fd19d5ed72c84ba4e87bea5c6e2a0817e7ddaece9d8ccc86133f62b988ee",
     txRef: "0x88e2f3a4b5c6d7e8f9a0b1c2d3e4f5b90123456789abcdef0123456789abcdef",
     proofMethod: "Ed25519Signature2020",
     trustRegistryRef: "block-#1,402,892",
@@ -170,7 +207,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     subjectName: "Alex Chen",
     issueDate: "2024-06-15",
     status: "active",
-    fingerprint: "0x8f2d9c1b7a4e6305149e88bf450289ab7e291249b51dca67104bce38102a9914",
+    fingerprint: "0xf4bba5a0f4bba5a06a8cdc11c8d556c22e1dc8b38c664364e3aec5d541f77f86a73ff677050068287b48e299da91654a38d99f3b9e2211ecfc6a885d53b3020eb1fb84ff17cc3eb07514b161eb5d2bd24aa5ad83a8ee24740e375e256c7fd096c2404b47",
     txRef: "0x3a4b5c6d7e8f90123456789abcdef012",
     proofMethod: "Ed25519Signature2020",
     trustRegistryRef: "block-#1,402,881",
@@ -186,7 +223,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     subjectName: "Dr. Sarah Lin",
     issueDate: "2024-05-20",
     status: "active",
-    fingerprint: "0x4b7e2a91c3d805f6e1a4b2c9d8e7f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d2e4",
+    fingerprint: "0x4611aff64611aff6d826d6477a7f5c949cb7c2e53ecc49325104cf83f35d75d01595fc21b7aa627ec9e2e8cf683b6f1c8a73956d2c881bba4ec0820be119085803518ea9a56634e6c7bebb3759f72184f80fa7d51a442e22bc9d5473ded5dac070ea4111",
     txRef: "0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
     proofMethod: "Ed25519Signature2020",
     trustRegistryRef: "block-#1,402,880",
@@ -205,7 +242,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     revocationDate: "2024-10-12",
     revocationReason: "Academic Honor Violation (Ticket #112)",
     revocationRef: "0x88f2a1b94c3d8271",
-    fingerprint: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+    fingerprint: "0x34fbf55034fbf550aacc8ce108950632ee5d98434c26139423ee952581b72f76677fa687c54038d8bb08b2691ad135baf899cfcb5e62411c3c2ad8ad93f352fe71bbd40fd78c6e40b554e1912b1d7b228ae5fd7368ae7484ce770ed5ac3f806602001bb7",
     txRef: "0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d",
     proofMethod: "Ed25519Signature2020",
     trustRegistryRef: "block-#1,401,950",
@@ -271,13 +308,69 @@ export const DEFAULT_USERS: Record<UserRole, UserSession> = {
 const TrustChainContext = createContext<TrustChainContextType | undefined>(undefined);
 
 export function TrustChainProvider({ children }: { children: React.ReactNode }) {
-  const [activeRole, setActiveRole] = useState<UserRole>("issuer");
-  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [institutions, setInstitutions] = useState<Institution[]>(INITIAL_INSTITUTIONS);
+  const [activeRole, setActiveRole] = useState<UserRole>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("tc_auth_role") as UserRole | null;
+        if (saved && DEFAULT_USERS[saved]) return saved;
+      } catch (e) {}
+    }
+    return "issuer";
+  });
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("tc_auth_role") as UserRole | null;
+        if (saved && DEFAULT_USERS[saved]) return DEFAULT_USERS[saved];
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return !!localStorage.getItem("tc_auth_role");
+      } catch (e) {}
+    }
+    return false;
+  });
+  const [institutions, setInstitutions] = useState<Institution[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_institutions");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_INSTITUTIONS;
+  });
   const [issuers, setIssuers] = useState<Issuer[]>(INITIAL_ISSUERS);
-  const [credentials, setCredentials] = useState<Credential[]>(INITIAL_CREDENTIALS);
-  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(INITIAL_AUDITS);
+  const [credentials, setCredentials] = useState<Credential[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_credentials");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_CREDENTIALS;
+  });
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_audits");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_AUDITS;
+  });
   const [activeInstitution, setActiveInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
   const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-lead-7721");
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<SupabaseSyncStatus>("connecting");
@@ -328,10 +421,26 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
           setIssuers(dbIssuers);
         }
         if (dbCreds && dbCreds.length > 0) {
-          setCredentials(dbCreds);
+          setCredentials((prev) => {
+            const merged = [...dbCreds];
+            prev.forEach((p) => {
+              if (!merged.some((m) => m.id === p.id)) {
+                merged.unshift(p);
+              }
+            });
+            return merged;
+          });
         }
         if (dbAudits && dbAudits.length > 0) {
-          setAuditEvents(dbAudits);
+          setAuditEvents((prev) => {
+            const merged = [...dbAudits];
+            prev.forEach((p) => {
+              if (!merged.some((m) => m.id === p.id)) {
+                merged.unshift(p);
+              }
+            });
+            return merged;
+          });
         }
       }
     } catch (e: any) {
@@ -340,36 +449,24 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
-  // Load from localStorage & Supabase on client mount
+  // Connect & sync with Supabase on client mount
   useEffect(() => {
-    try {
-      const storedCreds = localStorage.getItem("tc_credentials");
-      if (storedCreds) setCredentials(JSON.parse(storedCreds));
-      const storedInsts = localStorage.getItem("tc_institutions");
-      if (storedInsts) setInstitutions(JSON.parse(storedInsts));
-      const storedAudits = localStorage.getItem("tc_audits");
-      if (storedAudits) setAuditEvents(JSON.parse(storedAudits));
-
-      const savedAuth = localStorage.getItem("tc_auth_role") as UserRole | null;
-      if (savedAuth && DEFAULT_USERS[savedAuth]) {
-        setCurrentUser(DEFAULT_USERS[savedAuth]);
-        setActiveRole(savedAuth);
-        setIsLoggedIn(true);
-      }
-    } catch (e) {
-      console.warn("Storage hydration bypassed");
-    }
-
-    // Connect & sync with Supabase
     syncWithSupabase();
   }, []);
 
   // Sync to localStorage
   useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
-      localStorage.setItem("tc_credentials", JSON.stringify(credentials));
-      localStorage.setItem("tc_institutions", JSON.stringify(institutions));
-      localStorage.setItem("tc_audits", JSON.stringify(auditEvents));
+      if (credentials.length > 0) {
+        localStorage.setItem("tc_credentials", JSON.stringify(credentials));
+      }
+      if (institutions.length > 0) {
+        localStorage.setItem("tc_institutions", JSON.stringify(institutions));
+      }
+      if (auditEvents.length > 0) {
+        localStorage.setItem("tc_audits", JSON.stringify(auditEvents));
+      }
     } catch (e) {
       // Ignore
     }
@@ -464,10 +561,24 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     gpa?: string;
     documentImage?: string;
   }) => {
-    const randomHex = () => Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-    const credId = `cred-${new Date().getFullYear()}-${activeInstitution.name.split(" ").map(w => w[0]).join("")}-${Math.floor(10000 + Math.random() * 90000)}`;
-    const txRef = `0x${randomHex()}`;
-    const fingerprint = `0x${randomHex()}${randomHex()}`;
+    const credId = `cred-${new Date().getFullYear()}-${activeInstitution.name.split(" ").map((w: string) => w[0]).join("")}-${Math.floor(10000 + Math.random() * 90000)}`;
+    const issueDate = new Date().toISOString().slice(0, 10);
+
+    // Compute deterministic fingerprint from canonical credential payload
+    const payload = JSON.stringify({
+      id: credId,
+      type: data.title || data.type,
+      issuingInstitution: activeInstitution.name,
+      subjectId: data.subjectId,
+      subjectName: data.subjectName,
+      issueDate,
+    });
+    let hashVal = 5381;
+    for (let i = 0; i < payload.length; i++) {
+      hashVal = ((hashVal << 5) + hashVal) ^ payload.charCodeAt(i);
+      hashVal = hashVal >>> 0;
+    }
+    const fingerprint = `0x${hashVal.toString(16).padStart(8, "0")}${Array.from({ length: 24 }, (_, i) => ((hashVal ^ (i * 2654435761)) >>> 0).toString(16).padStart(8, "0")).join("")}`;
 
     const newCred: Credential = {
       id: credId,
@@ -476,10 +587,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       issuerId: activeInstitution.id,
       subjectId: data.subjectId,
       subjectName: data.subjectName,
-      issueDate: new Date().toISOString().slice(0, 10),
+      issueDate,
       status: "active",
       fingerprint,
-      txRef,
+      txRef: `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
       proofMethod: "Ed25519Signature2020",
       trustRegistryRef: `block-#${Math.floor(1402800 + Math.random() * 500)}`,
       did: `did:trust:${credId}`,
@@ -488,6 +599,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
 
     setCredentials((prev) => [newCred, ...prev]);
 
+    const txRef = newCred.txRef;
     const audit: AuditEvent = {
       id: `audit-${Date.now()}`,
       type: "credential_issuance",
@@ -510,9 +622,17 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   // 2b. Bulk Record Issuance (CSV / Batch)
   const issueBulkCredentials = (records: BulkRecordInput[]): Credential[] => {
     const blockNum = Math.floor(1402890 + Math.random() * 100);
+    const issueDate = new Date().toISOString().slice(0, 10);
     const newCreds: Credential[] = records.map((r, idx) => {
-      const randomHex = () => Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
       const credId = `cred-${new Date().getFullYear()}-${activeInstitution.name.split(" ").map(w => w[0]).join("")}-${Math.floor(10000 + Math.random() * 90000 + idx)}`;
+      const fingerprint = computeCredentialHash({
+        id: credId,
+        type: r.title,
+        issuingInstitution: activeInstitution.name,
+        subjectId: r.subjectId,
+        subjectName: r.subjectName,
+        issueDate,
+      });
       return {
         id: credId,
         type: r.title,
@@ -520,13 +640,14 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         issuerId: activeInstitution.id,
         subjectId: r.subjectId,
         subjectName: r.subjectName,
-        issueDate: new Date().toISOString().slice(0, 10),
+        issueDate,
         status: "active",
-        fingerprint: `0x${randomHex()}${randomHex()}`,
-        txRef: `0x${randomHex()}`,
+        fingerprint,
+        txRef: `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
         proofMethod: "Ed25519Signature2020",
         trustRegistryRef: `block-#${blockNum}`,
         did: `did:trust:${credId}`,
+        documentImage: "/sample_degree.jpg",
       };
     });
 
@@ -550,6 +671,21 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     saveAuditEventToDb(audit);
 
     return newCreds;
+  };
+
+  // 2c. Update Credential Image Digest (Visual Cryptographic Anchor)
+  const updateCredentialImageHash = async (credentialId: string, imageHash: string): Promise<boolean> => {
+    setCredentials((prev) =>
+      prev.map((c) => (c.id === credentialId ? { ...c, documentImageHash: imageHash } : c))
+    );
+    try {
+      const { createClient } = await import("../../utils/supabase/client");
+      const client = createClient();
+      await client.from("credentials").update({ document_image_hash: imageHash }).eq("id", credentialId);
+    } catch (e) {
+      console.warn("Could not sync image hash to Supabase:", e);
+    }
+    return true;
   };
 
   // 4. Revocation
@@ -595,48 +731,28 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     return true;
   };
 
-  // 3. Cross-Institution & Recruiter Verification
-  const verifyCredential = (
-    identifierOrDid: string,
-    tamperedData?: { subjectName?: string; gpa?: string; title?: string }
-  ) => {
-    const trimmed = identifierOrDid.trim().toLowerCase();
-    const cred = credentials.find(
-      (c) =>
-        c.id.toLowerCase() === trimmed ||
-        c.did.toLowerCase() === trimmed ||
-        c.fingerprint.toLowerCase() === trimmed
-    );
-
+  // Helper to evaluate verification checks on a credential
+  const evaluateCredential = (cred: Credential | undefined, identifierOrDid: string, uploadedImageHash?: string) => {
     const txRef = `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
-    
-    // Check if tampered simulation is active
-    const isTampered = Boolean(
-      tamperedData &&
-      ((tamperedData.subjectName && cred && tamperedData.subjectName !== cred.subjectName) ||
-       (tamperedData.gpa && tamperedData.gpa !== "3.94") ||
-       (tamperedData.title && cred && tamperedData.title !== cred.type))
-    );
-
-    const audit: AuditEvent = {
-      id: `audit-${Date.now()}`,
-      type: "credential_verification",
-      actor: "did:trust:cross-org-verifier-node",
-      timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
-      related: `Verification evaluation executed for ${identifierOrDid}`,
-      txRef,
-      outcome: cred && cred.status === "active" && !isTampered ? "success" : "alert",
-      details: isTampered
-        ? "Tamper alert: cryptographic content hash mismatch"
-        : "Zero-database verification executed against public key on Trust Registry",
-    };
-    setAuditEvents((prev) => [audit, ...prev]);
 
     if (!cred) {
+      const audit: AuditEvent = {
+        id: `audit-${Date.now()}`,
+        type: "credential_verification",
+        actor: "did:trust:cross-org-verifier-node",
+        timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+        related: `Verification failed — unknown credential ${identifierOrDid}`,
+        txRef,
+        outcome: "alert",
+        details: "Credential ID not recognized in decentralized trust registry",
+      };
+      setAuditEvents((prev) => [audit, ...prev]);
+
       return {
         isAuthentic: false,
         isRevoked: false,
         isTampered: true,
+        imageTampered: false,
         issuerAuthorized: false,
         computedHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
         expectedHash: "0xUnknown",
@@ -649,49 +765,192 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       };
     }
 
+    // Recompute payload hash from stored credential fields
+    const computedHash = computeCredentialHash(cred);
+    const dataTampered = computedHash.toLowerCase() !== cred.fingerprint.toLowerCase();
+
+    // Check image hash if uploaded file hash is provided and credential has anchored image hash
+    let imageTampered = false;
+    if (uploadedImageHash && cred.documentImageHash) {
+      imageTampered = uploadedImageHash.toLowerCase() !== cred.documentImageHash.toLowerCase();
+    }
+
+    const isTampered = dataTampered || imageTampered;
     const isRevoked = cred.status === "revoked";
     const isAuthentic = cred.status === "active" && !isTampered;
-    const computedHash = isTampered
-      ? "0x3e198a274b5c81f0923847291a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b"
-      : cred.fingerprint;
+
+    const audit: AuditEvent = {
+      id: `audit-${Date.now()}`,
+      type: "credential_verification",
+      actor: "did:trust:cross-org-verifier-node",
+      timestamp: new Date().toISOString().slice(0, 19).replace("T", " "),
+      related: `Verification evaluation executed for ${identifierOrDid}`,
+      txRef,
+      outcome: isAuthentic ? "success" : "alert",
+      details: isTampered
+        ? imageTampered
+          ? "Tamper alert: visual certificate image SHA-256 mismatch"
+          : "Tamper alert: cryptographic content hash mismatch"
+        : "Zero-database verification executed against public key on Trust Registry",
+    };
+    setAuditEvents((prev) => [audit, ...prev]);
+
+    const checks: { name: string; status: "pass" | "fail"; detail: string }[] = [
+      {
+        name: "Trust Registry Issuer Authorization",
+        status: "pass",
+        detail: `${cred.issuingInstitution} is an authorized, active institution node`,
+      },
+      {
+        name: "ED25519 Cryptographic Signature",
+        status: dataTampered ? "fail" : "pass",
+        detail: dataTampered
+          ? "Signature verification failed: modified payload invalidates issuer key signature"
+          : `Signature mathematically verified against ${cred.issuingInstitution} root key without database access`,
+      },
+      {
+        name: "Tamper Detection & Content Hash",
+        status: dataTampered ? "fail" : "pass",
+        detail: dataTampered
+          ? `Calculated hash ${computedHash.slice(0, 14)}... != Expected ${cred.fingerprint.slice(0, 14)}... (Data Modified)`
+          : `Computed SHA-256 matches anchor digest (${cred.fingerprint.slice(0, 14)}...)`,
+      },
+    ];
+
+    if (uploadedImageHash && cred.documentImageHash) {
+      checks.push({
+        name: "Visual Document Image Digest (SHA-256)",
+        status: imageTampered ? "fail" : "pass",
+        detail: imageTampered
+          ? `Visual image altered! File digest (${uploadedImageHash.slice(0, 16)}...) != Anchored issuance digest (${cred.documentImageHash.slice(0, 16)}...)`
+          : `Visual certificate digest mathematically matches anchored issuance digest (${cred.documentImageHash.slice(0, 16)}...)`,
+      });
+    }
+
+    checks.push({
+      name: "On-Chain Revocation Accumulator",
+      status: isRevoked ? "fail" : "pass",
+      detail: isRevoked
+        ? `Revocation anchored on ${(cred as any).revocationDate || "recent"}: ${(cred as any).revocationReason || "Revoked by issuer"}`
+        : "Cryptographic non-membership confirmed in revocation accumulator block",
+    });
 
     return {
       credential: cred,
       isAuthentic,
       isRevoked,
       isTampered,
+      imageTampered,
       issuerAuthorized: true,
-      computedHash,
-      expectedHash: cred.fingerprint,
-      checks: [
-        {
-          name: "Trust Registry Issuer Authorization",
-          status: "pass" as const,
-          detail: `${cred.issuingInstitution} is an authorized, active institution node`,
-        },
-        {
-          name: "ED25519 Cryptographic Signature",
-          status: (isTampered ? "fail" : "pass") as "pass" | "fail",
-          detail: isTampered
-            ? "Signature verification failed: modified payload invalidates issuer key signature"
-            : `Signature mathematically verified against ${cred.issuingInstitution} root key without database access`,
-        },
-        {
-          name: "Tamper Detection & Content Hash",
-          status: (isTampered ? "fail" : "pass") as "pass" | "fail",
-          detail: isTampered
-            ? `Calculated hash ${computedHash.slice(0, 14)}... != Expected ${cred.fingerprint.slice(0, 14)}... (Data Modified)`
-            : `Computed SHA-256 matches anchor digest (${cred.fingerprint.slice(0, 14)}...)`,
-        },
-        {
-          name: "On-Chain Revocation Accumulator",
-          status: (isRevoked ? "fail" : "pass") as "pass" | "fail",
-          detail: isRevoked
-            ? `Revocation anchored on ${cred.revocationDate || "recent"}: ${cred.revocationReason || "Revoked by issuer"}`
-            : "Cryptographic non-membership confirmed in revocation accumulator block",
-        },
-      ],
+      computedHash: uploadedImageHash && cred.documentImageHash ? uploadedImageHash : computedHash,
+      expectedHash: uploadedImageHash && cred.documentImageHash ? cred.documentImageHash : cred.fingerprint,
+      checks,
     };
+  };
+
+  // Synchronous verification (in-memory + localStorage)
+  const verifyCredential = (identifierOrDid: string, uploadedImageHash?: string) => {
+    const trimmed = identifierOrDid.trim().toLowerCase();
+    let cred = credentials.find(
+      (c) =>
+        c.id.toLowerCase() === trimmed ||
+        c.did.toLowerCase() === trimmed ||
+        (trimmed.startsWith("did:trust:") && c.did.toLowerCase() === trimmed) ||
+        c.fingerprint.toLowerCase() === trimmed
+    );
+
+    // Fallback: check localStorage
+    if (!cred && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_credentials");
+        if (stored) {
+          const list: Credential[] = JSON.parse(stored);
+          cred = list.find(
+            (c) =>
+              c.id.toLowerCase() === trimmed ||
+              c.did.toLowerCase() === trimmed ||
+              c.fingerprint.toLowerCase() === trimmed
+          );
+        }
+      } catch (e) {}
+    }
+
+    return evaluateCredential(cred, identifierOrDid, uploadedImageHash);
+  };
+
+  // Asynchronous verification with live Supabase query
+  const verifyCredentialAsync = async (identifierOrDid: string, uploadedImageHash?: string) => {
+    const trimmed = identifierOrDid.trim().toLowerCase();
+
+    // 1. Check in-memory state
+    let cred = credentials.find(
+      (c) =>
+        c.id.toLowerCase() === trimmed ||
+        c.did.toLowerCase() === trimmed ||
+        (trimmed.startsWith("did:trust:") && c.did.toLowerCase() === trimmed) ||
+        c.fingerprint.toLowerCase() === trimmed
+    );
+
+    // 2. Check localStorage
+    if (!cred && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_credentials");
+        if (stored) {
+          const list: Credential[] = JSON.parse(stored);
+          cred = list.find(
+            (c) =>
+              c.id.toLowerCase() === trimmed ||
+              c.did.toLowerCase() === trimmed ||
+              c.fingerprint.toLowerCase() === trimmed
+          );
+          if (cred) {
+            setCredentials((prev) => [cred!, ...prev.filter((p) => p.id !== cred!.id)]);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. Query Supabase directly if still not found
+    if (!cred) {
+      try {
+        const { createClient } = await import("../../utils/supabase/client");
+        const client = createClient();
+        const { data } = await client
+          .from("credentials")
+          .select("*")
+          .or(`id.ilike.${trimmed},did.ilike.${trimmed},fingerprint.ilike.${trimmed}`);
+
+        if (data && data.length > 0) {
+          const row = data[0];
+          cred = {
+            id: row.id,
+            type: row.type,
+            issuingInstitution: row.issuing_institution,
+            issuerId: row.issuer_id,
+            subjectId: row.subject_id,
+            subjectName: row.subject_name,
+            issueDate: row.issue_date,
+            expirationDate: row.expiration_date || undefined,
+            status: row.status,
+            fingerprint: row.fingerprint,
+            txRef: row.tx_ref,
+            proofMethod: row.proof_method,
+            trustRegistryRef: row.trust_registry_ref,
+            revocationRef: row.revocation_ref || undefined,
+            revocationDate: row.revocation_date || undefined,
+            revocationReason: row.revocation_reason || undefined,
+            did: row.did,
+            documentImage: row.document_image || undefined,
+            documentImageHash: row.document_image_hash || undefined,
+          };
+          setCredentials((prev) => [cred!, ...prev.filter((p) => p.id !== cred!.id)]);
+        }
+      } catch (e) {
+        console.warn("Direct Supabase verification query failed:", e);
+      }
+    }
+
+    return evaluateCredential(cred, identifierOrDid, uploadedImageHash);
   };
 
   return (
@@ -720,6 +979,8 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         issueBulkCredentials,
         revokeCredential,
         verifyCredential,
+        verifyCredentialAsync,
+        updateCredentialImageHash,
       }}
     >
       {children}

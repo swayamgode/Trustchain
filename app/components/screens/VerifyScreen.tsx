@@ -6,180 +6,162 @@ import {
   VerifyIcon,
   CheckCircleIcon,
   AlertCircleIcon,
-  ShieldCheckIcon,
-  LockIcon,
   CopyIcon,
-  ArrowRightIcon,
 } from "../ui/Icons";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
-import StatusBadge from "../ui/StatusBadge";
 
 interface VerifyScreenProps {
   onNavigate?: (screen: string) => void;
 }
 
-type ScenarioKey = "valid" | "tampered" | "revoked";
-
-const SCENARIOS = {
-  valid: {
-    name: "Scenario 1: Authentic Credential",
-    badge: "100% Valid",
-    badgeStatus: "verified",
-    description: "Authentic Computer Science B.S. issued by Metropolitan University",
-    credentialId: "did:trust:cred-2024-MU-00192",
-    subjectName: "Alex Chen",
-    issuer: "Metropolitan University",
-    issueDate: "2024-06-15",
-    verdict: "VALID",
-    summary: "Cryptographic signature matches issuer public key. No tampering detected. Credential is live and active on the trust registry.",
-    checks: [
-      { name: "Trust Registry Issuer Authorization", status: "pass", detail: "Metropolitan University is an active root issuer on mainnet" },
-      { name: "ED25519 Cryptographic Signature", status: "pass", detail: "Signature verified against public key ed25519:MU9942 without database access" },
-      { name: "Tamper Detection & Content Hash", status: "pass", detail: "Payload SHA-256 matches root digest (0x8f2d...)" },
-      { name: "On-Chain Revocation Accumulator", status: "pass", detail: "Cryptographic non-membership proof confirmed in block #1,402,881" },
-    ],
-  },
-  tampered: {
-    name: "Scenario 2: Tampered Credential",
-    badge: "Tamper Detected",
-    badgeStatus: "revoked",
-    description: "Grade modified from 3.20 to 4.00 Summa Cum Laude",
-    credentialId: "did:trust:cred-2024-MIT-TAMPER",
-    subjectName: "Jordan Hayes (Modified)",
-    issuer: "MIT Innovation Labs",
-    issueDate: "2024-05-10",
-    verdict: "TAMPER_DETECTED",
-    summary: "CRITICAL: The SHA-256 payload digest does not match the signed cryptographic digest. The credential contents have been modified after issuance.",
-    checks: [
-      { name: "Trust Registry Issuer Authorization", status: "pass", detail: "MIT Innovation Labs is a registered institution" },
-      { name: "ED25519 Cryptographic Signature", status: "fail", detail: "Signature verification failed: digest mismatch" },
-      { name: "Tamper Detection & Content Hash", status: "fail", detail: "Calculated hash 0x3e19... != Expected 0x9b4a... (GPA altered)" },
-      { name: "On-Chain Revocation Accumulator", status: "pass", detail: "No revocation record found" },
-    ],
-  },
-  revoked: {
-    name: "Scenario 3: Revoked Credential",
-    badge: "Revocation Found",
-    badgeStatus: "pending",
-    description: "Internship Certificate revoked due to academic misconduct",
-    credentialId: "did:trust:cred-2024-MU-11203",
-    subjectName: "David K. Vance",
-    issuer: "Metropolitan University Faculty Board",
-    issueDate: "2024-01-20",
-    verdict: "REVOKED",
-    summary: "INVALID: This credential was revoked on-chain by the issuing institution on 2024-10-12 (Reason: Academic Honor Violation - Ticket #112).",
-    checks: [
-      { name: "Trust Registry Issuer Authorization", status: "pass", detail: "Metropolitan University is an active root issuer" },
-      { name: "ED25519 Cryptographic Signature", status: "pass", detail: "Signature was valid at time of issuance" },
-      { name: "Tamper Detection & Content Hash", status: "pass", detail: "Payload has not been tampered with" },
-      { name: "On-Chain Revocation Accumulator", status: "fail", detail: "Revocation found in registry: Revoked on Oct 12, 2024 (Tx: 0x88f2...)" },
-    ],
-  },
-};
-
 export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
-  const { verifyCredential, credentials } = useTrustChain();
-  const [verifyingOrg, setVerifyingOrg] = useState("Acme Tech Recruiter / Hiring HR");
-  const [selectedScenario, setSelectedScenario] = useState<ScenarioKey | "custom">("valid");
+  const { verifyCredentialAsync } = useTrustChain();
   const [verifying, setVerifying] = useState(false);
-  const [progress, setProgress] = useState(100);
-  const [result, setResult] = useState<any>(SCENARIOS.valid);
-  const [inputDid, setInputDid] = useState("did:trust:cred-2024-MU-00192");
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<any>(null);
+  const [inputDid, setInputDid] = useState("");
   const [copied, setCopied] = useState(false);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [uploadedFileHash, setUploadedFileHash] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "found" | "notfound">("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Recruiter Tamper Simulation Controls
-  const [simulateTamper, setSimulateTamper] = useState(false);
-  const [tamperedName, setTamperedName] = useState("Alex Chen (Tampered to Alexander Chen)");
-  const [tamperedGpa, setTamperedGpa] = useState("4.00");
-
-  const VERIFIER_ORGS = [
-    { name: "Acme Tech Recruiter / Hiring HR", type: "Enterprise Employer" },
-    { name: "Stanford Medical Council", type: "Licensing Board" },
-    { name: "MIT Innovation Labs", type: "Research Institute" },
-    { name: "Harvard Alliance", type: "Academic Validator" },
-  ];
-
-  const runVerification = (scenarioKey: ScenarioKey) => {
-    setSelectedScenario(scenarioKey);
+  const runVerify = async (id: string, fileHashToUse?: string) => {
+    const cleanId = id.trim();
+    if (!cleanId) return;
     setResult(null);
     setVerifying(true);
     setProgress(0);
-    setInputDid(SCENARIOS[scenarioKey].credentialId);
-    setSimulateTamper(scenarioKey === "tampered");
 
-    const steps = [20, 45, 75, 90, 100];
-    let i = 0;
+    const targetHash = fileHashToUse !== undefined ? fileHashToUse : (uploadedFileHash || undefined);
+
+    const steps = [25, 55, 80, 95];
+    let stepIdx = 0;
     const interval = setInterval(() => {
-      if (i < steps.length) {
-        setProgress(steps[i]);
-        i++;
-      } else {
-        clearInterval(interval);
-        setVerifying(false);
-        setResult(SCENARIOS[scenarioKey]);
+      if (stepIdx < steps.length) {
+        setProgress(steps[stepIdx++]);
       }
-    }, 180);
-  };
+    }, 120);
 
-  const handleRecruiterVerify = () => {
-    setSelectedScenario("custom");
-    setResult(null);
-    setVerifying(true);
-    setProgress(0);
+    try {
+      const evalResult = await verifyCredentialAsync(cleanId, targetHash);
+      clearInterval(interval);
+      setProgress(100);
 
-    const steps = [25, 55, 80, 100];
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < steps.length) {
-        setProgress(steps[i]);
-        i++;
-      } else {
-        clearInterval(interval);
+      setTimeout(() => {
         setVerifying(false);
+        const cred = evalResult.credential;
 
-        // Run dynamic verification from TrustChainContext with tamper check!
-        const evalResult = verifyCredential(inputDid, simulateTamper ? { subjectName: tamperedName, gpa: tamperedGpa } : undefined);
-        if (evalResult.credential) {
-          const cred = evalResult.credential;
-          const isRev = cred.status === "revoked";
+        if (cred) {
+          const isRev = evalResult.isRevoked;
           const isTamp = evalResult.isTampered;
+          const isImgTamp = evalResult.imageTampered;
 
           setResult({
-            name: `${cred.type} (${cred.subjectName})`,
-            badge: isTamp ? "Tamper Detected" : isRev ? "Revocation Found" : "100% Authentic",
-            badgeStatus: isTamp || isRev ? "revoked" : "verified",
-            credentialId: cred.did || cred.id,
-            subjectName: simulateTamper ? tamperedName : cred.subjectName,
+            verdict: isTamp ? "TAMPER_DETECTED" : isRev ? "REVOKED" : "VALID",
+            summary: isImgTamp
+              ? `TAMPER DETECTED: The certificate file was modified after issuance! Visual SHA-256 file digest (${targetHash?.slice(0, 16)}...) does not match anchored issuance digest (${cred.documentImageHash?.slice(0, 16)}...).`
+              : isTamp
+              ? `TAMPER DETECTED: Credential data modified after issuance. SHA-256 digest (${evalResult.computedHash.slice(0, 16)}...) differs from anchored registry digest (${evalResult.expectedHash.slice(0, 16)}...).`
+              : isRev
+              ? `REVOKED: This credential was revoked by ${cred.issuingInstitution}. Reason: ${(cred as any).revocationReason || "Revoked by issuer"}.`
+              : `VERIFIED AUTHENTIC: Cryptographic ledger signature and visual document hash mathematically verified against Trust Registry. Zero tampering detected.`,
+            subjectName: cred.subjectName,
             issuer: cred.issuingInstitution,
             issueDate: cred.issueDate,
-            verdict: isTamp ? "TAMPER_DETECTED" : isRev ? "REVOKED" : "VALID",
-            summary: isTamp
-              ? `TAMPER DETECTED: The document contents presented to recruiter have been modified after issuance. SHA-256 payload digest mismatch!`
-              : isRev
-              ? `RECORD REVOKED: This certificate was revoked on-chain by ${cred.issuingInstitution}. Reason: ${cred.revocationReason || "Revoked by issuer"}.`
-              : `VERIFIED AUTHENTIC: Verified by ${verifyingOrg}. ED25519 signature is mathematically authentic. Zero college database access required.`,
+            credentialId: cred.did || cred.id,
+            type: cred.type,
+            documentImage: cred.documentImage,
+            computedHash: evalResult.computedHash,
+            expectedHash: evalResult.expectedHash,
             checks: evalResult.checks,
           });
         } else {
           setResult({
-            name: "Unknown Credential",
-            badge: "Unrecognized Record",
-            badgeStatus: "revoked",
-            credentialId: inputDid,
-            subjectName: "Unrecognized Candidate",
-            issuer: "Unregistered Entity",
-            issueDate: "N/A",
             verdict: "TAMPER_DETECTED",
-            summary: "VERIFICATION FAILED: Record does not exist in the Trust Registry or is invalid.",
+            summary: `NOT FOUND: No record found in the Trust Registry for '${cleanId}'. The document may be forged or the ID is invalid.`,
+            subjectName: "Unknown",
+            issuer: "Unknown",
+            issueDate: "—",
+            credentialId: cleanId,
+            type: "—",
+            documentImage: null,
+            computedHash: evalResult.computedHash,
+            expectedHash: evalResult.expectedHash,
             checks: evalResult.checks,
           });
         }
-      }
-    }, 200);
+      }, 200);
+    } catch (e: any) {
+      clearInterval(interval);
+      setVerifying(false);
+      setResult({
+        verdict: "TAMPER_DETECTED",
+        summary: `Verification error: ${e?.message || "Failed to query trust registry"}`,
+        subjectName: "Unknown",
+        issuer: "Unknown",
+        issueDate: "—",
+        credentialId: cleanId,
+        type: "—",
+        documentImage: null,
+        computedHash: "0xError",
+        expectedHash: "0xUnknown",
+        checks: [],
+      });
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    setScanStatus("scanning");
+    setUploadedImage(null);
+    setUploadedFileHash(null);
+
+    // Compute cryptographic SHA-256 hash of the exact file bytes
+    try {
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const fileHash = "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      setUploadedFileHash(fileHash);
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+        setUploadedImage(dataUrl);
+        try {
+          const img = new Image();
+          img.onload = async () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d")!;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const jsQR = (await import("jsqr")).default;
+            const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+            if (qrCode?.data) {
+              let credId = qrCode.data.trim();
+              const urlMatch = qrCode.data.match(/[?&]verify=([^&]+)/);
+              if (urlMatch) credId = decodeURIComponent(urlMatch[1]).trim();
+              setInputDid(credId);
+              setScanStatus("found");
+              // Automatically execute real cryptographic verification
+              runVerify(credId, fileHash);
+            } else {
+              setScanStatus("notfound");
+            }
+          };
+          img.src = dataUrl;
+        } catch {
+          setScanStatus("notfound");
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setScanStatus("notfound");
+    }
   };
 
   const handleCopy = (text: string) => {
@@ -188,119 +170,52 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleFileUpload = async (file: File) => {
-    if (!file) return;
-    setScanStatus("scanning");
-    setUploadedImage(null);
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      setUploadedImage(dataUrl);
-
-      try {
-        // Draw image to canvas and extract pixel data for QR scanning
-        const img = new Image();
-        img.onload = async () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d")!;
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-          const jsQR = (await import("jsqr")).default;
-          const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-
-          if (qrCode?.data) {
-            // Extract credential ID from URL (e.g. ?verify=cred-xxx)
-            let credId = qrCode.data;
-            const urlMatch = qrCode.data.match(/[?&]verify=([^&]+)/);
-            if (urlMatch) credId = urlMatch[1];
-            setInputDid(credId);
-            setScanStatus("found");
-          } else {
-            setScanStatus("notfound");
-          }
-        };
-        img.src = dataUrl;
-      } catch (err) {
-        console.error("QR scan error:", err);
-        setScanStatus("notfound");
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
   return (
-    <div className="p-6 md:p-8 max-w-[1300px] mx-auto space-y-7 animate-fade-in">
+    <div className="p-6 md:p-8 max-w-[1100px] mx-auto space-y-7 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#E8E9E5]">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] font-bold uppercase tracking-wider text-[#1764C0] bg-[#E6F2FC] px-2.5 py-0.5 rounded-full">
-              Recruiter & Cross-Institution Verifier
-            </span>
-          </div>
-          <h1 className="text-[28px] font-extrabold text-[#101418] tracking-tight mt-1">
-            Recruiter Document Verification & Tamper Detection
-          </h1>
-          <p className="text-[14px] text-[#626971]">
-            Recruiters and other institutions validate candidate credentials instantly without needing access to the college's entire internal database.
-          </p>
-        </div>
-
-        {/* Verifier Switcher */}
-        <div className="flex items-center gap-2 bg-white p-2 rounded-[12px] border border-[#E8E9E5]">
-          <span className="text-[12px] font-bold text-[#8A9097] px-1">Auditing As:</span>
-          <select
-            value={verifyingOrg}
-            onChange={(e) => setVerifyingOrg(e.target.value)}
-            className="text-[13px] font-semibold text-[#101418] bg-transparent focus:outline-none cursor-pointer"
-          >
-            {VERIFIER_ORGS.map((vo) => (
-              <option key={vo.name} value={vo.name}>
-                {vo.name} ({vo.type})
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="pb-4 border-b border-[#E8E9E5]">
+        <span className="text-[12px] font-bold uppercase tracking-wider text-[#1764C0] bg-[#E6F2FC] px-2.5 py-0.5 rounded-full">
+          Recruiter Verification Portal
+        </span>
+        <h1 className="text-[28px] font-extrabold text-[#101418] tracking-tight mt-2">
+          Credential Verification & Tamper Detection
+        </h1>
+        <p className="text-[14px] text-[#626971] mt-1">
+          Verify any certificate instantly. If the document was tampered after issuance, the cryptographic hash mismatch will catch it automatically.
+        </p>
       </div>
 
-      {/* Recruiter Input Card with Tamper Sandbox Toggle */}
+      {/* Input Card */}
       <Card className="space-y-5">
+        {/* Manual ID Input */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-[12px] font-bold uppercase tracking-wider text-[#8A9097]">
-              Certificate ID / Verification Link / DID
-            </label>
-            <span className="text-[11px] text-[#626971]">
-              Try pasting an ID from Registry or Student Portal
-            </span>
-          </div>
+          <label className="text-[12px] font-bold uppercase tracking-wider text-[#8A9097] block mb-2">
+            Credential ID / DID / Verification Link
+          </label>
           <div className="flex flex-col sm:flex-row gap-3">
             <input
               type="text"
               value={inputDid}
               onChange={(e) => setInputDid(e.target.value)}
-              placeholder="e.g. did:trust:cred-2024-MU-00192 or cred-2024-MU-..."
+              onKeyDown={(e) => e.key === "Enter" && runVerify(inputDid)}
+              placeholder="Paste credential ID or scan QR from certificate..."
               className="flex-1 h-[44px] px-4 rounded-[10px] bg-[#F7F7F4] border border-[#E8E9E5] text-[13px] font-mono text-[#101418] focus:bg-white focus:outline-none focus:border-[#A9DF16]"
             />
             <Button
               variant="primary"
               size="md"
-              onClick={handleRecruiterVerify}
-              disabled={verifying}
+              onClick={() => runVerify(inputDid)}
+              disabled={verifying || !inputDid.trim()}
               icon={<VerifyIcon className="w-4 h-4 text-[#BEF52A]" />}
             >
-              {verifying ? "Auditing Cryptographic Proof..." : "Verify Certificate"}
+              {verifying ? "Verifying..." : "Verify Certificate"}
             </Button>
           </div>
         </div>
 
-        {/* Upload Certificate File (from student download) */}
+        {/* File Upload */}
         <div
-          className="rounded-[14px] border-2 border-dashed border-[#D0D3CB] bg-[#F7F7F4] p-5 space-y-3 cursor-pointer hover:border-[#9FD30C] hover:bg-[#F0F7E6] transition-all"
+          className="rounded-[14px] border-2 border-dashed border-[#D0D3CB] bg-[#F7F7F4] p-5 cursor-pointer hover:border-[#9FD30C] hover:bg-[#F0F7E6] transition-all"
           onClick={() => fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFileUpload(f); }}
@@ -308,7 +223,7 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,application/pdf"
+            accept="image/*"
             className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
           />
@@ -316,11 +231,11 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           {uploadedImage && scanStatus !== "idle" ? (
             <div className="flex items-start gap-4">
               <img src={uploadedImage} alt="Uploaded certificate" className="w-28 h-20 object-cover rounded-[10px] border border-[#E8E9E5] shrink-0" />
-              <div className="flex-1 space-y-1.5">
+              <div className="flex-1 space-y-2">
                 <div className="text-[13px] font-bold text-[#101418]">
-                  {scanStatus === "scanning" && "🔍 Scanning QR code..."}
-                  {scanStatus === "found" && "✅ Credential ID extracted from QR code"}
-                  {scanStatus === "notfound" && "⚠️ No QR code found — enter ID manually"}
+                  {scanStatus === "scanning" && "🔍 Scanning QR code from certificate..."}
+                  {scanStatus === "found" && "✅ QR code detected — credential ID extracted"}
+                  {scanStatus === "notfound" && "⚠️ No QR code found in this image — enter ID manually above"}
                 </div>
                 {scanStatus === "found" && (
                   <div className="text-[11px] font-mono text-[#159447] bg-[#E8F8E8] px-2 py-1 rounded-[6px] break-all">
@@ -328,7 +243,7 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
                   </div>
                 )}
                 {scanStatus === "found" && (
-                  <Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); handleRecruiterVerify(); }}>
+                  <Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); runVerify(inputDid); }}>
                     Verify Now →
                   </Button>
                 )}
@@ -337,70 +252,20 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           ) : (
             <div className="text-center space-y-1 py-2">
               <div className="text-3xl">📎</div>
-              <div className="text-[13px] font-bold text-[#101418]">Upload Certificate File</div>
+              <div className="text-[13px] font-bold text-[#101418]">Upload Certificate Image</div>
               <div className="text-[12px] text-[#626971]">
-                Drag & drop or click to upload a JPG/PDF certificate received from a student.<br />
-                The QR code will be scanned and the credential ID extracted automatically.
+                Drag & drop or click to upload a JPG received from a student.<br />
+                The QR code is scanned automatically and the credential verified.
               </div>
             </div>
           )}
         </div>
 
-        {/* Interactive Recruiter Tamper Simulation Sandbox */}
-        <div className="p-4 rounded-[12px] bg-[#F7F7F4] border border-[#E8E9E5] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#B95B12]" />
-              <span className="text-[13px] font-bold text-[#101418]">
-                Recruiter Tamper Testing Sandbox:
-              </span>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={simulateTamper}
-                onChange={(e) => setSimulateTamper(e.target.checked)}
-                className="w-4 h-4 rounded text-[#111410] focus:ring-[#A9DF16]"
-              />
-              <span className="text-[12px] font-bold text-[#C0392B]">
-                Simulate Candidate Altering Document Data
-              </span>
-            </label>
-          </div>
-
-          {simulateTamper && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#E8E9E5] animate-fade-in text-[12px]">
-              <div>
-                <span className="font-semibold text-[#626971] block mb-1">
-                  Tampered Candidate Name:
-                </span>
-                <input
-                  type="text"
-                  value={tamperedName}
-                  onChange={(e) => setTamperedName(e.target.value)}
-                  className="w-full h-[36px] px-3 rounded-[8px] bg-white border border-[#C0392B] text-[#101418] font-medium"
-                />
-              </div>
-              <div>
-                <span className="font-semibold text-[#626971] block mb-1">
-                  Tampered CGPA:
-                </span>
-                <input
-                  type="text"
-                  value={tamperedGpa}
-                  onChange={(e) => setTamperedGpa(e.target.value)}
-                  className="w-full h-[36px] px-3 rounded-[8px] bg-white border border-[#C0392B] text-[#101418] font-medium"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Verification Progress */}
+        {/* Progress */}
         {verifying && (
-          <div className="space-y-2 pt-1">
+          <div className="space-y-2">
             <div className="flex justify-between text-[12px] font-semibold text-[#101418]">
-              <span>Querying blockchain anchor & computing SHA-256 hash...</span>
+              <span>Computing SHA-256 digest & querying trust registry...</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-[#E8E9E5] rounded-full h-2 overflow-hidden">
@@ -413,49 +278,10 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
         )}
       </Card>
 
-      {/* Preset Evaluation Scenarios */}
-      <div>
-        <div className="text-[12px] font-bold uppercase tracking-wider text-[#8A9097] mb-2 px-1">
-          Quick Comparison Scenarios
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {(Object.keys(SCENARIOS) as ScenarioKey[]).map((key) => {
-            const sc = SCENARIOS[key];
-            const isSelected = selectedScenario === key;
-
-            return (
-              <div
-                key={key}
-                onClick={() => runVerification(key)}
-                className={`p-4 rounded-[14px] border cursor-pointer interactive flex flex-col justify-between ${
-                  isSelected
-                    ? "bg-[#EFFBCB] border-[#BEF52A] shadow-xs"
-                    : "bg-white border-[#E8E9E5] hover:border-[#D9DCD5]"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[14px] font-bold text-[#101418]">
-                    {sc.name}
-                  </span>
-                  <StatusBadge status={sc.badgeStatus} label={sc.badge} />
-                </div>
-                <p className="text-[12px] text-[#626971] leading-relaxed">
-                  {sc.description}
-                </p>
-                <div className="mt-3 pt-2 border-t border-[#E8E9E5]/70 flex items-center justify-between text-[11px] font-medium text-[#101418]">
-                  <span>Run Scenario</span>
-                  <ArrowRightIcon className="w-3.5 h-3.5" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Results Breakdown */}
+      {/* Results */}
       {result && !verifying && (
         <div className="space-y-6 animate-fade-in">
-          {/* Main Verdict Banner */}
+          {/* Verdict Banner */}
           <div
             className={`p-6 rounded-[16px] border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
               result.verdict === "VALID"
@@ -468,83 +294,97 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
             <div className="flex items-start gap-4">
               <div
                 className={`w-12 h-12 rounded-[14px] flex items-center justify-center shrink-0 ${
-                  result.verdict === "VALID"
-                    ? "bg-[#159447] text-white"
-                    : result.verdict === "TAMPER_DETECTED"
-                    ? "bg-[#C0392B] text-white"
-                    : "bg-[#B95B12] text-white"
-                }`}
+                  result.verdict === "VALID" ? "bg-[#159447]" : result.verdict === "TAMPER_DETECTED" ? "bg-[#C0392B]" : "bg-[#B95B12]"
+                } text-white`}
               >
-                {result.verdict === "VALID" ? (
-                  <CheckCircleIcon className="w-6 h-6" />
-                ) : (
-                  <AlertCircleIcon className="w-6 h-6" />
-                )}
+                {result.verdict === "VALID" ? <CheckCircleIcon className="w-6 h-6" /> : <AlertCircleIcon className="w-6 h-6" />}
               </div>
               <div>
                 <h2 className="text-[20px] font-extrabold tracking-tight">
                   {result.verdict === "VALID"
-                    ? "Authentic: No Tampering Detected"
+                    ? "✓ Authentic — No Tampering Detected"
                     : result.verdict === "TAMPER_DETECTED"
-                    ? "Tamper Alert: Document Modified After Issuance!"
-                    : "Record Revoked by College"}
+                    ? "⚠ Tamper Alert: Document Modified After Issuance"
+                    : "✕ Credential Revoked by Institution"}
                 </h2>
-                <p className="text-[13px] opacity-90 mt-1 leading-relaxed max-w-2xl">
-                  {result.summary}
-                </p>
+                <p className="text-[13px] opacity-90 mt-1 leading-relaxed max-w-2xl">{result.summary}</p>
               </div>
             </div>
-
             <button
               onClick={() => handleCopy(result.credentialId)}
               className="px-3.5 py-2 rounded-[10px] bg-white text-[#101418] text-[12px] font-semibold border border-current/20 hover:bg-black/5 flex items-center gap-1.5 transition-colors shrink-0"
             >
               <CopyIcon className="w-3.5 h-3.5" />
-              <span>{copied ? "Copied" : "Copy Audit Proof"}</span>
+              <span>{copied ? "Copied" : "Copy Credential ID"}</span>
             </button>
           </div>
 
-          {/* Cryptographic Evaluation Matrix */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Credential Info */}
+            <Card className="space-y-3">
+              <h3 className="text-[15px] font-bold text-[#101418] pb-2 border-b border-[#E8E9E5]">Credential Record</h3>
+              {[
+                ["Candidate Name", result.subjectName],
+                ["Certificate Type", result.type],
+                ["Issuing Institution", result.issuer],
+                ["Issue Date", result.issueDate],
+                ["Credential DID", result.credentialId],
+              ].map(([label, val]) => (
+                <div key={label} className="flex justify-between text-[13px]">
+                  <span className="text-[#626971]">{label}:</span>
+                  <span className="font-semibold text-[#101418] text-right max-w-[55%] truncate">{val}</span>
+                </div>
+              ))}
+            </Card>
+
+            {/* Hash Comparison */}
+            <Card className="space-y-3">
+              <h3 className="text-[15px] font-bold text-[#101418] pb-2 border-b border-[#E8E9E5]">SHA-256 Hash Comparison</h3>
+              <div className="space-y-2 text-[12px]">
+                <div>
+                  <div className="text-[#8A9097] font-bold uppercase tracking-wide mb-1">Anchored Hash (Issuance)</div>
+                  <div className="font-mono text-[#159447] bg-[#E8F8E8] p-2 rounded-[8px] break-all">{result.expectedHash}</div>
+                </div>
+                <div>
+                  <div className="text-[#8A9097] font-bold uppercase tracking-wide mb-1">Computed Hash (Now)</div>
+                  <div className={`font-mono p-2 rounded-[8px] break-all ${
+                    result.computedHash === result.expectedHash
+                      ? "text-[#159447] bg-[#E8F8E8]"
+                      : "text-[#C0392B] bg-[#FDEAE7]"
+                  }`}>{result.computedHash}</div>
+                </div>
+                <div className={`text-[12px] font-bold mt-1 ${
+                  result.computedHash === result.expectedHash ? "text-[#159447]" : "text-[#C0392B]"
+                }`}>
+                  {result.computedHash === result.expectedHash ? "✓ Hashes match — data intact" : "✕ Hash mismatch — data was altered"}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Cryptographic Checks */}
           <Card className="!p-0 overflow-hidden">
             <div className="p-5 border-b border-[#E8E9E5]">
-              <h3 className="text-[16px] font-bold text-[#101418]">
-                Cryptographic Audit Matrix (Zero College DB Access)
-              </h3>
-              <p className="text-[13px] text-[#626971] mt-0.5">
-                Proof evaluated by <strong>{verifyingOrg}</strong> using only public registry anchors.
-              </p>
+              <h3 className="text-[16px] font-bold text-[#101418]">Cryptographic Audit Checks</h3>
+              <p className="text-[13px] text-[#626971] mt-0.5">Zero college database access required for any of these checks.</p>
             </div>
-
             <div className="divide-y divide-[#E8E9E5]">
               {result.checks.map((chk: any, idx: number) => (
                 <div key={idx} className="p-4 md:px-6 flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
-                    <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
-                        chk.status === "pass"
-                          ? "bg-[#E8F8E8] text-[#159447]"
-                          : "bg-[#FDEAE7] text-[#C0392B]"
-                      }`}
-                    >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                      chk.status === "pass" ? "bg-[#E8F8E8] text-[#159447]" : "bg-[#FDEAE7] text-[#C0392B]"
+                    }`}>
                       {chk.status === "pass" ? "✓" : "✕"}
                     </div>
                     <div>
-                      <div className="text-[14px] font-semibold text-[#101418]">
-                        {chk.name}
-                      </div>
-                      <div className="text-[12px] text-[#626971] mt-0.5">
-                        {chk.detail}
-                      </div>
+                      <div className="text-[14px] font-semibold text-[#101418]">{chk.name}</div>
+                      <div className="text-[12px] text-[#626971] mt-0.5">{chk.detail}</div>
                     </div>
                   </div>
-
-                  <span
-                    className={`text-[12px] font-bold px-2.5 py-0.5 rounded-full ${
-                      chk.status === "pass"
-                        ? "bg-[#E8F8E8] text-[#159447]"
-                        : "bg-[#FDEAE7] text-[#C0392B]"
-                    }`}
-                  >
+                  <span className={`text-[12px] font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
+                    chk.status === "pass" ? "bg-[#E8F8E8] text-[#159447]" : "bg-[#FDEAE7] text-[#C0392B]"
+                  }`}>
                     {chk.status === "pass" ? "Pass" : "Failed"}
                   </span>
                 </div>
@@ -552,73 +392,41 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
             </div>
           </Card>
 
-          {/* Security, Photocopy & Zero Database Proof Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Certificate Comparison / Preview */}
+          {(result.documentImage || uploadedImage) && (
             <Card>
-              <h4 className="text-[14px] font-bold text-[#101418] mb-3 pb-2 border-b border-[#E8E9E5]">
-                Candidate Credential Record
-              </h4>
-              <div className="space-y-2 text-[13px]">
-                <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
-                  <span className="text-[#626971]">Candidate Name:</span>
-                  <span className="font-semibold text-[#101418]">{result.subjectName}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
-                  <span className="text-[#626971]">Issuing College:</span>
-                  <span className="font-semibold text-[#101418]">{result.issuer}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-[#626971]">Issue Date:</span>
-                  <span className="font-semibold text-[#101418]">{result.issueDate}</span>
-                </div>
-              </div>
-            </Card>
-
-            {/* Recruiter Degree Photocopy Document Preview */}
-            <Card className="flex flex-col justify-between">
-              <div>
-                <h4 className="text-[14px] font-bold text-[#101418] mb-2 pb-2 border-b border-[#E8E9E5] flex items-center justify-between">
-                  <span>Physical Degree Photocopy</span>
-                  <span className="text-[11px] text-[#159447] font-semibold">Matched</span>
-                </h4>
-                <div className="h-28 rounded-[10px] overflow-hidden border border-[#D9DCD5] bg-white relative group">
-                  <img
-                    src={result.credential?.documentImage || "/lead_certificate_bg.jpg"}
-                    alt="Physical Diploma Scan"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-[#111410]/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="bg-white/90 text-[11px] font-bold px-2 py-1 rounded shadow-sm text-[#101418]">
-                      Official Scan
-                    </span>
+              <h3 className="text-[15px] font-bold text-[#101418] pb-2 border-b border-[#E8E9E5] mb-4">
+                {uploadedImage ? "Visual Certificate Comparison" : "Anchored Certificate on Record"}
+              </h3>
+              <div className={`grid gap-4 ${uploadedImage && result.documentImage ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+                {uploadedImage && (
+                  <div className="space-y-1.5">
+                    <div className="text-[12px] font-bold text-[#626971] flex items-center justify-between">
+                      <span>Uploaded Candidate File</span>
+                      <span className="text-[11px] font-mono text-[#8A9097]">{uploadedFileHash?.slice(0, 14)}...</span>
+                    </div>
+                    <div className="rounded-[12px] overflow-hidden border border-[#D9DCD5] max-h-64 bg-white flex items-center justify-center">
+                      <img src={uploadedImage} alt="Uploaded candidate certificate" className="w-full object-contain max-h-64" />
+                    </div>
                   </div>
-                </div>
+                )}
+                {result.documentImage && (
+                  <div className="space-y-1.5">
+                    <div className="text-[12px] font-bold text-[#626971] flex items-center justify-between">
+                      <span>Official Trust Registry Record</span>
+                      <span className="text-[11px] font-mono text-[#8A9097]">{result.expectedHash?.slice(0, 14)}...</span>
+                    </div>
+                    <div className="rounded-[12px] overflow-hidden border border-[#D9DCD5] max-h-64 bg-white flex items-center justify-center">
+                      <img src={result.documentImage} alt="Original certificate on record" className="w-full object-contain max-h-64" />
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="text-[11px] text-[#626971] pt-2">
-                Image SHA-256 matches college anchor hash.
-              </div>
+              <p className="text-[11px] text-[#626971] mt-3">
+                Zero college database queries required. Cryptographic integrity is verified directly against decentralized consensus blocks.
+              </p>
             </Card>
-
-            <Card>
-              <h4 className="text-[14px] font-bold text-[#101418] mb-3 pb-2 border-b border-[#E8E9E5]">
-                Decentralized Trust Proof
-              </h4>
-              <div className="space-y-2 text-[13px]">
-                <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
-                  <span className="text-[#626971]">College DB Access:</span>
-                  <span className="font-bold text-[#159447]">0% Required (Zero-Knowledge)</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-[#E8E9E5]/60">
-                  <span className="text-[#626971]">Signature Standard:</span>
-                  <span className="font-mono text-[#101418]">Ed25519Signature2020</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-[#626971]">Tamper Proof Check:</span>
-                  <span className="font-semibold text-[#101418]">SHA-256 Digest Match</span>
-                </div>
-              </div>
-            </Card>
-          </div>
+          )}
         </div>
       )}
     </div>

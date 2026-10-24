@@ -10,12 +10,13 @@ import StatusBadge from "../ui/StatusBadge";
 import { CopyIcon, CheckCircleIcon, ShieldCheckIcon, ArrowRightIcon } from "../ui/Icons";
 
 export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
-  const { credentials, selectedStudentDid, setSelectedStudentDid } = useTrustChain();
+  const { credentials, selectedStudentDid, setSelectedStudentDid, updateCredentialImageHash } = useTrustChain();
   const [copiedLink, setCopiedLink] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [downloading, setDownloading] = useState<"jpg" | "pdf" | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"photocopy" | "digital">("photocopy");
   const certRef = useRef<HTMLDivElement>(null);
 
@@ -45,19 +46,43 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
   };
 
   const handleDownload = async (format: "jpg" | "pdf") => {
-    if (!certRef.current) return;
+    // Ensure photocopy view is active so certRef is mounted
+    if (viewMode !== "photocopy") setViewMode("photocopy");
     setDownloading(format);
+    setDownloadError(null);
+
+    // Wait for React to render the photocopy view
+    await new Promise((r) => setTimeout(r, 150));
+
+    if (!certRef.current) {
+      setDownloadError("Certificate element not found in DOM.");
+      setDownloading(null);
+      return;
+    }
+
     try {
       const { downloadCertificate } = await import("../../lib/downloadCertificate");
       const safeName = `${selectedCert?.subjectName || "certificate"}_${selectedCert?.type || "doc"}`.replace(/[^a-z0-9_\-]/gi, "_");
-      await downloadCertificate(certRef.current, safeName, format);
-    } catch (e) {
+      await downloadCertificate(
+        certRef.current,
+        safeName,
+        format,
+        verificationUrl,
+        async (hash) => {
+          if (selectedCert?.id) {
+            await updateCredentialImageHash(selectedCert.id, hash);
+          }
+        }
+      );
+      setShowDownloadModal(false);
+    } catch (e: any) {
       console.error("Download failed:", e);
+      setDownloadError(e?.message || "Download failed. Please try again.");
     } finally {
       setDownloading(null);
-      setShowDownloadModal(false);
     }
   };
+
 
   return (
     <div className="p-6 md:p-8 max-w-[1300px] mx-auto space-y-7 animate-fade-in">
@@ -455,9 +480,11 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
             </div>
 
-            <p className="text-[11px] text-center text-[#8A9097]">
-              💡 Switch to <strong>Physical Degree Photocopy</strong> view before downloading for the official certificate image.
-            </p>
+            {downloadError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-[12px] p-3 rounded-[10px]">
+                ⚠️ {downloadError}
+              </div>
+            )}
           </div>
         </div>
       )}

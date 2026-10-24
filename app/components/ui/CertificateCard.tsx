@@ -47,11 +47,13 @@ export default function CertificateCard({
               src={cert.documentImage}
               alt={cert.type || "Official Issued Certificate"}
               className="w-full h-full object-cover"
+              crossOrigin="anonymous"
             />
 
             {/* Top-Right Pill Inspect Button */}
             {showInspectButton && (
               <button
+                data-html2canvas-ignore="true"
                 onClick={onInspectFull}
                 className="absolute top-3.5 right-3.5 z-20 bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer"
               >
@@ -76,6 +78,7 @@ export default function CertificateCard({
               </div>
             </div>
           </div>
+
         ) : (
           /* 2. DYNAMIC LEAD ACADEMY / GOLD HONORS CERTIFICATE TEMPLATE */
           <div className="relative w-full h-full">
@@ -88,6 +91,7 @@ export default function CertificateCard({
             {/* Top-Right Pill Inspect Button */}
             {showInspectButton && (
               <button
+                data-html2canvas-ignore="true"
                 onClick={onInspectFull}
                 className="absolute top-3.5 right-3.5 z-20 bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer"
               >
