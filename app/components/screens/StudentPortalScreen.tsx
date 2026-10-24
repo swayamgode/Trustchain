@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTrustChain } from "../../context/TrustChainContext";
 import QRCodeCanvas from "../ui/QRCodeCanvas";
+import CertificateCard from "../ui/CertificateCard";
 import Card from "../ui/Card";
 import Button from "../ui/Button";
 import StatusBadge from "../ui/StatusBadge";
@@ -21,11 +22,14 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
   ).map((str) => JSON.parse(str) as { name: string; did: string });
 
   const activeStudentCreds = credentials.filter(
-    (c) => c.subjectId === selectedStudentDid || c.subjectName.toLowerCase().includes("chen")
+    (c) => c.subjectId === selectedStudentDid
   );
 
-  const selectedCert = activeStudentCreds[0] || credentials[0];
-  const degreePhoto = selectedCert?.documentImage || "/sample_degree.jpg";
+  const selectedCert =
+    activeStudentCreds[0] ||
+    credentials.find((c) => c.subjectName.toLowerCase().includes("bhavik")) ||
+    credentials[0];
+  const degreePhoto = selectedCert?.documentImage || "/lead_certificate_bg.jpg";
 
   const verificationUrl = typeof window !== "undefined"
     ? `${window.location.origin}/?verify=${selectedCert?.id}`
@@ -115,42 +119,20 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               {/* PHOTOCOPY SCAN VIEW */}
               {viewMode === "photocopy" && (
                 <div className="space-y-4 animate-fade-in">
-                  <div className="bg-white border-2 border-[#111410] rounded-[20px] p-3 shadow-md relative overflow-hidden group">
-                    {/* The Full Scanned Degree Image */}
-                    <div className="relative rounded-[14px] overflow-hidden border border-[#D9DCD5] bg-[#FAF8F5]">
-                      <img
-                        src={degreePhoto}
-                        alt="Scanned Degree Document Photocopy"
-                        className="w-full h-auto object-cover"
-                      />
-
-                      {/* Embedded QR Code Stamp Overlay on the Certificate Photocopy */}
-                      <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-xs p-2.5 rounded-[12px] border border-[#111410]/20 shadow-lg flex flex-col items-center">
-                        <QRCodeCanvas value={verificationUrl} size={90} />
-                        <span className="text-[9px] font-bold font-mono uppercase tracking-wider text-[#101418] mt-1">
-                          Scan to Verify
-                        </span>
-                        <span className="text-[8px] text-[#159447] font-bold">
-                          ✓ On-Chain Verified
-                        </span>
-                      </div>
-
-                      {/* Hover Fullscreen Prompt */}
-                      <button
-                        onClick={() => setShowFullscreenPhoto(true)}
-                        className="absolute top-4 right-4 bg-[#111410]/80 text-white text-[12px] font-medium px-3 py-1.5 rounded-full backdrop-blur-xs hover:bg-[#111410] transition-colors flex items-center gap-1.5"
-                      >
-                        <span>🔍 Inspect Full Document</span>
-                      </button>
-                    </div>
-
-                    <div className="p-4 flex items-center justify-between text-[12px] text-[#626971]">
-                      <div>
-                        <span className="font-bold text-[#101418]">Document Title:</span> {selectedCert.type}
-                      </div>
-                      <StatusBadge status={selectedCert.status} />
-                    </div>
-                  </div>
+                  <CertificateCard
+                    cert={{
+                      id: selectedCert.id,
+                      type: selectedCert.type,
+                      subjectName: selectedCert.subjectName,
+                      subjectId: selectedCert.subjectId,
+                      issuingInstitution: selectedCert.issuingInstitution,
+                      issuanceDate: selectedCert.issueDate,
+                      status: selectedCert.status as any,
+                      documentImage: selectedCert.documentImage,
+                    }}
+                    verificationUrl={verificationUrl}
+                    onInspectFull={() => setShowFullscreenPhoto(true)}
+                  />
                 </div>
               )}
 
@@ -328,20 +310,21 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
             </div>
 
-            <div className="relative rounded-[12px] overflow-hidden border border-[#E8E9E5] shadow-inner">
-              <img
-                src={degreePhoto}
-                alt="Full High-Res Degree Scan"
-                className="w-full h-auto"
+            <div className="relative rounded-[16px] overflow-hidden">
+              <CertificateCard
+                cert={{
+                  id: selectedCert.id,
+                  type: selectedCert.type,
+                  subjectName: selectedCert.subjectName,
+                  subjectId: selectedCert.subjectId,
+                  issuingInstitution: selectedCert.issuingInstitution,
+                  issuanceDate: selectedCert.issueDate,
+                  status: selectedCert.status as any,
+                  documentImage: selectedCert.documentImage,
+                }}
+                verificationUrl={verificationUrl}
+                showInspectButton={false}
               />
-              <div className="absolute bottom-4 right-4 bg-white/95 p-2 rounded-[10px] border border-[#111410]/20 shadow-md flex items-center gap-2">
-                <QRCodeCanvas value={verificationUrl} size={70} />
-                <div className="text-left font-mono text-[9px] text-[#101418] leading-tight">
-                  <div className="font-bold">VERIFIED ANCHOR</div>
-                  <div>SHA-256 MATCHED</div>
-                  <div className="text-[#159447] font-bold">128/128 NODES</div>
-                </div>
-              </div>
             </div>
 
             <div className="flex justify-end pt-2">

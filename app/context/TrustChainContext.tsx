@@ -118,6 +118,22 @@ const INITIAL_ISSUERS: Issuer[] = [
 
 const INITIAL_CREDENTIALS: Credential[] = [
   {
+    id: "cred-2024-LEAD-08819",
+    type: "Course Completion Certificate",
+    issuingInstitution: "Lead Academy",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-lead-7721",
+    subjectName: "Bhavik Jain",
+    issueDate: "2024-02-18",
+    status: "active",
+    fingerprint: "0x7f9a2e4b6c8d0e1f3a5b7c9d1e3f5a7b8c2d1e9f7a6b4c2d1e9f7a6b4c2d1e9f",
+    txRef: "0x88e2f3a4b5c6d7e8f9a0b1c2d3e4f5b90123456789abcdef0123456789abcdef",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,402,892",
+    did: "did:trust:cred-2024-LEAD-08819",
+    documentImage: "/lead_certificate_bg.jpg",
+  },
+  {
     id: "cred-2024-MU-00192",
     type: "Bachelor of Science in Computer Science",
     issuingInstitution: "Metropolitan University",
@@ -202,7 +218,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   const [credentials, setCredentials] = useState<Credential[]>(INITIAL_CREDENTIALS);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(INITIAL_AUDITS);
   const [activeInstitution, setActiveInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
-  const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-mu-8841");
+  const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-lead-7721");
 
   // Load from localStorage on client mount
   useEffect(() => {
