@@ -104,9 +104,36 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
 
   // Bulk Issuance State
   const [csvText, setCsvText] = useState(SAMPLE_CSV);
+  const [bulkImage, setBulkImage] = useState<string>("/lead_certificate_bg.jpg");
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkSigning, setBulkSigning] = useState(false);
   const [bulkIssuedResults, setBulkIssuedResults] = useState<any[] | null>(null);
+
+  const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setCsvText(event.target.result as string);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleBulkImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setBulkImage(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const parseCsvRows = (text: string): BulkRecordInput[] => {
     return text
@@ -122,6 +149,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
           department: parts[3] || "Academic Affairs",
           gpa: parts[4] || "3.80",
           honours: parts[5] || "Honors",
+          documentImage: bulkImage,
         };
       });
   };
@@ -137,7 +165,9 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
       setBulkProgress(Math.min(p, 100));
       if (p >= 100) {
         clearInterval(interval);
-        const results = issueBulkCredentials(parsedBulkRows);
+        const results = issueBulkCredentials(
+          parsedBulkRows.map((r) => ({ ...r, documentImage: bulkImage }))
+        );
         setBulkIssuedResults(results);
         setBulkSigning(false);
       }
@@ -240,7 +270,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
       {mode === "bulk" && (
         <div className="space-y-6 animate-fade-in">
           <Card className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8E9E5]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E9E5]">
               <div>
                 <h2 className="text-[17px] font-bold text-[#101418]">
                   Bulk Batch Credential Generator (CSV)
@@ -249,13 +279,59 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                   Colleges can issue certificates to an entire graduating cohort in seconds. Each student receives an individual cryptographic signature.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setCsvText(SAMPLE_CSV)}
-              >
-                Reset Sample Cohort (5 Students)
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <label className="cursor-pointer">
+                  <span className="px-3 py-1.5 text-[12px] font-semibold bg-white hover:bg-[#F2F3EF] border border-[#E8E9E5] rounded-[8px] transition-all inline-flex items-center gap-1.5 shadow-2xs">
+                    📁 Upload .CSV File
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv,text/plain"
+                    onChange={handleCsvFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCsvText(SAMPLE_CSV)}
+                >
+                  Reset Sample (5 Students)
+                </Button>
+              </div>
+            </div>
+
+            {/* Batch Certificate Template Image */}
+            <div className="p-3.5 rounded-[12px] bg-[#F7F7F4] border border-[#E8E9E5] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-14 h-11 rounded-[8px] overflow-hidden border border-[#D9DCD5] shrink-0 bg-white shadow-2xs">
+                  <img
+                    src={bulkImage}
+                    alt="Cohort Diploma Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold text-[#101418] truncate">
+                    Cohort Certificate Template Scan
+                  </div>
+                  <div className="text-[11px] text-[#626971]">
+                    Applied as the official background photo for every certificate in this batch
+                  </div>
+                </div>
+              </div>
+
+              <label className="cursor-pointer shrink-0">
+                <span className="px-3 py-1.5 text-[12px] font-semibold bg-white hover:bg-[#F2F3EF] border border-[#E8E9E5] rounded-[8px] transition-all shadow-2xs">
+                  Upload Template Scan
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBulkImageChange}
+                  className="hidden"
+                />
+              </label>
             </div>
 
             <div>

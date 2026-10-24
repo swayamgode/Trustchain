@@ -39,6 +39,7 @@ export interface BulkRecordInput {
   department: string;
   gpa: string;
   honours: string;
+  documentImage?: string;
 }
 
 interface TrustChainContextType {
@@ -647,7 +648,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         proofMethod: "Ed25519Signature2020",
         trustRegistryRef: `block-#${blockNum}`,
         did: `did:trust:${credId}`,
-        documentImage: "/sample_degree.jpg",
+        documentImage: r.documentImage || "/sample_degree.jpg",
       };
     });
 
