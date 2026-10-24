@@ -596,6 +596,9 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       trustRegistryRef: `block-#${Math.floor(1402800 + Math.random() * 500)}`,
       did: `did:trust:${credId}`,
       documentImage: data.documentImage || "/sample_degree.jpg",
+      department: data.department,
+      gpa: data.gpa,
+      honours: data.honours,
     };
 
     setCredentials((prev) => [newCred, ...prev]);
@@ -642,13 +645,16 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         subjectId: r.subjectId,
         subjectName: r.subjectName,
         issueDate,
-        status: "active",
+        status: "active" as const,
         fingerprint,
         txRef: `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
         proofMethod: "Ed25519Signature2020",
         trustRegistryRef: `block-#${blockNum}`,
         did: `did:trust:${credId}`,
         documentImage: r.documentImage || "/sample_degree.jpg",
+        department: r.department,
+        gpa: r.gpa,
+        honours: r.honours,
       };
     });
 

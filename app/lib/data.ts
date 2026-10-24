@@ -44,6 +44,9 @@ export interface Credential {
   did: string;
   documentImage?: string;
   documentImageHash?: string;
+  department?: string;
+  gpa?: string;
+  honours?: string;
 }
 
 export interface AuditEvent {

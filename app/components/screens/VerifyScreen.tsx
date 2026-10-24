@@ -428,19 +428,36 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
                         <span className="text-[11px] font-mono text-[#8A9097]">{result.expectedHash?.slice(0, 14)}...</span>
                       )}
                     </div>
-                    <div className="rounded-[12px] overflow-hidden border border-[#D9DCD5] max-h-64 bg-white flex items-center justify-center">
-                      <img
-                        src={
-                          result.documentImage.includes("/d/")
-                            ? `https://drive.google.com/thumbnail?id=${result.documentImage.match(/\/d\/([a-zA-Z0-9_-]+)/)?.[1]}&sz=w1600`
-                            : result.documentImage
-                        }
-                        alt="Original certificate on record"
-                        className="w-full object-contain max-h-64"
-                        onError={(e) => {
-                          e.currentTarget.src = "/lead_certificate_bg.jpg";
-                        }}
-                      />
+                    <div className="rounded-[12px] overflow-hidden border border-[#D9DCD5] max-h-72 bg-[#F9FAF8] flex flex-col items-center justify-center p-4">
+                      {result.documentImage.includes("drive.google.com") ? (
+                        <div className="w-full text-center space-y-3 py-4">
+                          <div className="w-12 h-12 mx-auto rounded-full bg-[#EBF3FC] text-[#1764C0] flex items-center justify-center text-2xl">
+                            📁
+                          </div>
+                          <div>
+                            <div className="font-bold text-[13px] text-[#101418]">Verified University Marksheet on Google Drive</div>
+                            <div className="text-[11px] text-[#626971] mt-0.5">Anchored cryptographic record for {result.subjectName}</div>
+                          </div>
+                          <a
+                            href={result.documentImage}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1764C0] hover:bg-[#12509c] text-white text-[12px] font-semibold rounded-[8px] shadow-xs transition-colors"
+                          >
+                            <span>Open in Google Drive</span>
+                            <span>↗</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <img
+                          src={result.documentImage}
+                          alt="Original certificate on record"
+                          className="w-full object-contain max-h-64"
+                          onError={(e) => {
+                            e.currentTarget.src = "/lead_certificate_bg.jpg";
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
                 )}

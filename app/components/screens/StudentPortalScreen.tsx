@@ -182,6 +182,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                         issuanceDate: selectedCert.issueDate,
                         status: selectedCert.status as any,
                         documentImage: selectedCert.documentImage,
+                        gpa: selectedCert.gpa,
                       }}
                       verificationUrl={verificationUrl}
                       onInspectFull={() => setShowFullscreenPhoto(true)}
@@ -375,11 +376,48 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                   issuanceDate: selectedCert.issueDate,
                   status: selectedCert.status as any,
                   documentImage: selectedCert.documentImage,
+                  gpa: selectedCert.gpa,
                 }}
                 verificationUrl={verificationUrl}
                 showInspectButton={false}
               />
             </div>
+
+            {/* Attached Drive Document Box */}
+            {selectedCert.documentImage?.includes("drive.google.com") && (() => {
+              const driveMatch = selectedCert.documentImage.match(/\/d\/([a-zA-Z0-9_-]+)/);
+              const driveId = driveMatch ? driveMatch[1] : null;
+              return (
+                <div className="bg-[#F7F7F4] border border-[#E8E9E5] rounded-[16px] p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">📁</span>
+                      <div>
+                        <div className="font-bold text-[14px] text-[#101418]">Original Student Marksheet (Google Drive)</div>
+                        <div className="text-[12px] text-[#626971]">Verified physical marksheet uploaded by university issuer</div>
+                      </div>
+                    </div>
+                    <a
+                      href={selectedCert.documentImage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 bg-[#1B4B8A] hover:bg-[#163c6e] text-white rounded-[10px] text-[12px] font-semibold flex items-center gap-1.5 transition-colors shrink-0 shadow-xs"
+                    >
+                      <span>Open on Google Drive ↗</span>
+                    </a>
+                  </div>
+                  {driveId && (
+                    <div className="w-full rounded-[12px] overflow-hidden border border-[#D9DCD5] bg-white aspect-[16/10] max-h-[460px]">
+                      <iframe
+                        src={`https://drive.google.com/file/d/${driveId}/preview`}
+                        className="w-full h-full border-0"
+                        title="Google Drive Marksheet Preview"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="flex justify-end pt-2">
               <Button variant="primary" size="md" onClick={() => setShowFullscreenPhoto(false)}>
