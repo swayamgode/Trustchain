@@ -8,6 +8,19 @@ import {
   type AuditEvent,
 } from "../lib/data";
 import { computeSha256, generateEd25519Signature } from "../lib/crypto";
+import {
+  checkSupabaseConnection,
+  fetchInstitutionsFromDb,
+  saveInstitutionToDb,
+  fetchIssuersFromDb,
+  saveIssuerToDb,
+  fetchCredentialsFromDb,
+  saveCredentialToDb,
+  updateCredentialRevocationInDb,
+  fetchAuditEventsFromDb,
+  saveAuditEventToDb,
+  type SupabaseSyncStatus,
+} from "../lib/supabaseService";
 
 export type UserRole = "issuer" | "student" | "recruiter" | "network";
 
@@ -31,6 +44,9 @@ interface TrustChainContextType {
   setActiveInstitution: (inst: Institution) => void;
   selectedStudentDid: string;
   setSelectedStudentDid: (did: string) => void;
+  supabaseSyncStatus: SupabaseSyncStatus;
+  supabaseStatusMessage: string;
+  syncWithSupabase: () => Promise<void>;
   registerInstitution: (data: { name: string; type: string; did?: string; rootKey?: string }) => Institution;
   authorizeIssuer: (data: { institutionId: string; keyFingerprint: string; permissions: string[] }) => Issuer;
   issueCredential: (data: {
@@ -219,8 +235,45 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>(INITIAL_AUDITS);
   const [activeInstitution, setActiveInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
   const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-lead-7721");
+  const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<SupabaseSyncStatus>("connecting");
+  const [supabaseStatusMessage, setSupabaseStatusMessage] = useState<string>("Connecting to Supabase...");
 
-  // Load from localStorage on client mount
+  // Sync with Supabase Database
+  const syncWithSupabase = async () => {
+    try {
+      const conn = await checkSupabaseConnection();
+      setSupabaseSyncStatus(conn.status);
+      setSupabaseStatusMessage(conn.message);
+
+      if (conn.status === "connected") {
+        const [dbInsts, dbIssuers, dbCreds, dbAudits] = await Promise.all([
+          fetchInstitutionsFromDb(),
+          fetchIssuersFromDb(),
+          fetchCredentialsFromDb(),
+          fetchAuditEventsFromDb(),
+        ]);
+
+        if (dbInsts && dbInsts.length > 0) {
+          setInstitutions(dbInsts);
+          setActiveInstitution(dbInsts[0]);
+        }
+        if (dbIssuers && dbIssuers.length > 0) {
+          setIssuers(dbIssuers);
+        }
+        if (dbCreds && dbCreds.length > 0) {
+          setCredentials(dbCreds);
+        }
+        if (dbAudits && dbAudits.length > 0) {
+          setAuditEvents(dbAudits);
+        }
+      }
+    } catch (e: any) {
+      setSupabaseSyncStatus("offline");
+      setSupabaseStatusMessage(e?.message || "Failed to sync with Supabase");
+    }
+  };
+
+  // Load from localStorage & Supabase on client mount
   useEffect(() => {
     try {
       const storedCreds = localStorage.getItem("tc_credentials");
@@ -232,6 +285,9 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     } catch (e) {
       console.warn("Storage hydration bypassed");
     }
+
+    // Connect & sync with Supabase
+    syncWithSupabase();
   }, []);
 
   // Sync to localStorage
@@ -278,6 +334,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     };
     setAuditEvents((prev) => [audit, ...prev]);
 
+    // Async sync to Supabase
+    saveInstitutionToDb(newInst);
+    saveAuditEventToDb(audit);
+
     return newInst;
   };
 
@@ -311,6 +371,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       details: `Council authorized keypair ${newIssuer.keyFingerprint} for institutional credential signing`,
     };
     setAuditEvents((prev) => [audit, ...prev]);
+
+    // Async sync to Supabase
+    saveIssuerToDb(newIssuer);
+    saveAuditEventToDb(audit);
 
     return newIssuer;
   };
@@ -362,6 +426,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     };
     setAuditEvents((prev) => [audit, ...prev]);
 
+    // Async sync to Supabase
+    saveCredentialToDb(newCred);
+    saveAuditEventToDb(audit);
+
     return newCred;
   };
 
@@ -403,6 +471,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     };
     setAuditEvents((prev) => [audit, ...prev]);
 
+    // Async sync to Supabase
+    newCreds.forEach((c) => saveCredentialToDb(c));
+    saveAuditEventToDb(audit);
+
     return newCreds;
   };
 
@@ -414,6 +486,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     if (!target) return false;
 
     const txRef = `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+    const revocationDate = new Date().toISOString().slice(0, 10);
 
     setCredentials((prev) =>
       prev.map((c) =>
@@ -421,7 +494,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
           ? {
               ...c,
               status: "revoked",
-              revocationDate: new Date().toISOString().slice(0, 10),
+              revocationDate,
               revocationReason: reason,
               revocationRef: txRef,
             }
@@ -440,6 +513,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       details: `On-chain revocation accumulator updated with revocation hash for ${target.id}`,
     };
     setAuditEvents((prev) => [audit, ...prev]);
+
+    // Async sync to Supabase
+    updateCredentialRevocationInDb(target.id, revocationDate, reason, txRef);
+    saveAuditEventToDb(audit);
 
     return true;
   };
@@ -556,6 +633,9 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         setActiveInstitution,
         selectedStudentDid,
         setSelectedStudentDid,
+        supabaseSyncStatus,
+        supabaseStatusMessage,
+        syncWithSupabase,
         registerInstitution,
         authorizeIssuer,
         issueCredential,
