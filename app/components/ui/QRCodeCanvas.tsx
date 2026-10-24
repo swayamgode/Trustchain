@@ -7,9 +7,17 @@ interface QRCodeCanvasProps {
   value: string;
   size?: number;
   className?: string;
+  noFrame?: boolean;
+  transparent?: boolean;
 }
 
-export default function QRCodeCanvas({ value, size = 140, className = "" }: QRCodeCanvasProps) {
+export default function QRCodeCanvas({
+  value,
+  size = 140,
+  className = "",
+  noFrame = false,
+  transparent = false,
+}: QRCodeCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [dataUrl, setDataUrl] = useState<string>("");
 
@@ -20,10 +28,10 @@ export default function QRCodeCanvas({ value, size = 140, className = "" }: QRCo
         value,
         {
           width: size,
-          margin: 1,
+          margin: 0,
           color: {
-            dark: "#101418",
-            light: "#FFFFFF",
+            dark: "#0F172A",
+            light: transparent ? "#00000000" : "#FFFFFF",
           },
         },
         (error) => {
@@ -34,7 +42,15 @@ export default function QRCodeCanvas({ value, size = 140, className = "" }: QRCo
         }
       );
     }
-  }, [value, size]);
+  }, [value, size, transparent]);
+
+  if (noFrame) {
+    return (
+      <div className={`inline-flex flex-col items-center ${className}`}>
+        <canvas ref={canvasRef} style={{ width: size, height: size }} />
+      </div>
+    );
+  }
 
   return (
     <div className={`inline-flex flex-col items-center bg-white p-2 rounded-[12px] border border-[#E8E9E5] shadow-xs ${className}`}>

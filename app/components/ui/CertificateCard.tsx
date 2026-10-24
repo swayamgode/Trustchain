@@ -55,14 +55,12 @@ export default function CertificateCard({
           {/* Top Header: Logo / Institution Name */}
           <div className="flex items-center justify-end pr-2">
             <div className="text-right">
-              <div className="flex items-center justify-end gap-1.5 text-[#1B365D]">
-                <span className="font-extrabold text-[15px] tracking-tight leading-none">
-                  {cert.issuingInstitution.toUpperCase()}
-                </span>
+              <div className="font-extrabold text-[15px] tracking-tight leading-none text-[#1B365D]">
+                {cert.issuingInstitution ? cert.issuingInstitution.toUpperCase() : "LEAD ACADEMY"}
               </div>
-              <span className="text-[8.5px] uppercase tracking-wider text-[#64748B] font-medium">
-                Accredited Trust Registry Node
-              </span>
+              <div className="text-[7.5px] text-[#006699] font-medium tracking-wide mt-0.5">
+                www.{cert.issuingInstitution?.toLowerCase().replace(/[^a-z0-9]/g, "") || "lead"}.academy
+              </div>
             </div>
           </div>
 
@@ -104,48 +102,54 @@ export default function CertificateCard({
             </p>
           </div>
 
-          {/* Footer Grid: Signatures, Endorsement, and Integrated QR Code */}
-          <div className="grid grid-cols-12 items-end pt-2 pb-1 border-t border-[#E2D8C3]/60">
-            {/* Signature Block (Col 1-4) */}
-            <div className="col-span-4 text-center">
-              <div className="font-script text-[18px] text-[#0F172A] -mb-1 transform -rotate-2">
-                Ashfaq Zaman
-              </div>
-              <div className="w-24 mx-auto border-b border-[#0F172A]/70 mb-0.5" />
-              <div className="text-[8px] font-bold text-[#1E293B] leading-none">
-                Ashfaq Zaman
-              </div>
-              <div className="text-[7px] text-[#64748B]">
-                Chairman & Chancellor
-              </div>
+          {/* Signature Block */}
+          <div className="text-center pt-1 pb-0.5">
+            <div className="font-script text-[24px] text-[#0F172A] -mb-1 transform -rotate-1">
+              Ashfaq Zaman
             </div>
+            <div className="w-32 mx-auto border-b border-[#0F172A]/70 mb-0.5" />
+            <div className="text-[8.5px] font-bold text-[#1E293B] leading-none">
+              Ashfaq Zaman
+            </div>
+            <div className="text-[7.5px] text-[#64748B] mt-0.5">
+              Chairman, {cert.issuingInstitution || "Lead Academy"}
+            </div>
+          </div>
 
-            {/* Endorsement & Issue Date (Col 5-8) */}
-            <div className="col-span-4 text-center space-y-1">
-              <div className="inline-flex items-center gap-1 bg-white/70 px-1.5 py-0.5 rounded border border-[#E2E8F0]">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#008080] text-white flex items-center justify-center text-[6px] font-black">
-                  ✓
+          {/* Bottom Bar: Endorsement, Issue Date, and Exact Integrated QR Code */}
+          <div className="flex items-end justify-between pt-1 border-t border-[#E2D8C3]/60 pr-1">
+            {/* Endorsed by (Left) */}
+            <div className="space-y-0.5 pb-0.5">
+              <span className="text-[7.5px] text-[#64748B] italic block">Endorsed by</span>
+              <div className="inline-flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded-full bg-[#1B4B8A] text-white flex items-center justify-center text-[7px] font-bold">
+                  🌐
                 </div>
-                <span className="text-[6.5px] font-bold text-[#334155] tracking-tight">
+                <span className="text-[7.5px] font-bold text-[#1E3A8A] tracking-tight">
                   United Nations Global Compact
                 </span>
               </div>
-              <div className="text-[7.5px] text-[#64748B] font-medium">
-                Issued On: {cert.issuanceDate || "February, 2023"}
-              </div>
             </div>
 
-            {/* Integrated Verification QR Code (Col 9-12) */}
-            <div className="col-span-4 flex flex-col items-center justify-end text-center">
-              <div className="bg-white p-1 rounded-[6px] border border-[#CBD5E1] shadow-xs">
-                <QRCodeCanvas value={verificationUrl} size={64} />
-              </div>
-              <div className="mt-0.5">
-                <div className="text-[6.5px] font-extrabold text-[#0F172A] tracking-wider uppercase font-mono">
-                  Scan To Verify
+            {/* Issued Date (Center) */}
+            <div className="text-[8px] text-[#64748B] font-medium pb-1">
+              Issued On: {cert.issuanceDate || "February, 2023"}
+            </div>
+
+            {/* Pure Borderless QR Code (Right) — Matching Reference Certificate */}
+            <div className="flex flex-col items-center text-center select-none">
+              <QRCodeCanvas
+                value={verificationUrl}
+                size={74}
+                noFrame={true}
+                transparent={true}
+              />
+              <div className="mt-1 text-center">
+                <div className="text-[7px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-tight font-sans">
+                  SCAN TO VERIFY
                 </div>
-                <div className="text-[6px] font-semibold text-[#159447]">
-                  Authentication
+                <div className="text-[6.5px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-tight font-sans">
+                  AUTHENTICATION
                 </div>
               </div>
             </div>
