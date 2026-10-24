@@ -10,7 +10,16 @@ interface TopNavProps {
 }
 
 export default function TopNav({ activeScreen, onNavigate }: TopNavProps) {
-  const { activeRole, setActiveRole, activeInstitution, setActiveInstitution, institutions } = useTrustChain();
+  const {
+    activeRole,
+    setActiveRole,
+    activeInstitution,
+    setActiveInstitution,
+    institutions,
+    supabaseSyncStatus,
+    supabaseStatusMessage,
+    syncWithSupabase,
+  } = useTrustChain();
   const [showSwitchMenu, setShowSwitchMenu] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
 
@@ -67,7 +76,51 @@ export default function TopNav({ activeScreen, onNavigate }: TopNavProps) {
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Supabase Cloud Sync Indicator */}
+        <button
+          onClick={() => syncWithSupabase()}
+          title={`Supabase: ${supabaseStatusMessage} (Click to refresh)`}
+          className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[9px] border text-[11px] font-medium transition-all shadow-2xs hover:opacity-90"
+          style={{
+            backgroundColor:
+              supabaseSyncStatus === "connected"
+                ? "#F0FDF4"
+                : supabaseSyncStatus === "tables_missing"
+                ? "#FFFBEB"
+                : "#F8FAFC",
+            borderColor:
+              supabaseSyncStatus === "connected"
+                ? "#BBF7D0"
+                : supabaseSyncStatus === "tables_missing"
+                ? "#FDE68A"
+                : "#E2E8F0",
+            color:
+              supabaseSyncStatus === "connected"
+                ? "#15803D"
+                : supabaseSyncStatus === "tables_missing"
+                ? "#B45309"
+                : "#475569",
+          }}
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              supabaseSyncStatus === "connected"
+                ? "bg-[#16A34A] animate-pulse"
+                : supabaseSyncStatus === "tables_missing"
+                ? "bg-[#D97706]"
+                : "bg-[#94A3B8]"
+            }`}
+          />
+          <span className="font-semibold">
+            {supabaseSyncStatus === "connected"
+              ? "Supabase Connected"
+              : supabaseSyncStatus === "tables_missing"
+              ? "Supabase: Tables Pending"
+              : "Supabase Local Fallback"}
+          </span>
+        </button>
+
         {/* Quick Issue Button */}
         <button
           onClick={() => onNavigate("issue")}
