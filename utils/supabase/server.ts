@@ -1,13 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const DEFAULT_URL = "https://odyswtjvukwpytcizfft.supabase.co";
+const DEFAULT_KEY = "sb_publishable_a2KpLBvNlbxI5zh0ZjjXhQ_oDW9-fwL";
 
 export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || DEFAULT_KEY;
   return createServerClient(
-    supabaseUrl!,
-    supabaseKey!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
