@@ -8,6 +8,7 @@ import { TrustChainProvider } from "../context/TrustChainContext";
 
 const OverviewScreen = dynamic(() => import("./screens/OverviewScreen"), { ssr: false });
 const VerifyScreen = dynamic(() => import("./screens/VerifyScreen"), { ssr: false });
+const CrossValidationScreen = dynamic(() => import("./screens/CrossValidationScreen"), { ssr: false });
 const IssueScreen = dynamic(() => import("./screens/IssueScreen"), { ssr: false });
 const StudentPortalScreen = dynamic(() => import("./screens/StudentPortalScreen"), { ssr: false });
 const RegistryScreen = dynamic(() => import("./screens/RegistryScreen"), { ssr: false });
@@ -24,6 +25,8 @@ export default function AppShell() {
     switch (activeScreen) {
       case "overview":
         return <OverviewScreen onNavigate={setActiveScreen} />;
+      case "cross-validation":
+        return <CrossValidationScreen onNavigate={setActiveScreen} />;
       case "verify":
         return <VerifyScreen onNavigate={setActiveScreen} />;
       case "issue":

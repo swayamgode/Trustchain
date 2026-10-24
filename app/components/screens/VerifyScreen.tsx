@@ -14,6 +14,7 @@ import {
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
+import LedgerCrossValidationModal from "../ui/LedgerCrossValidationModal";
 
 interface VerifyScreenProps {
   onNavigate?: (screen: string) => void;
@@ -87,6 +88,9 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
   const [result, setResult] = useState<any>(SCENARIOS.valid);
   const [inputDid, setInputDid] = useState("did:trust:cred-2024-MU-00192");
   const [copied, setCopied] = useState(false);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [ledgerTargetId, setLedgerTargetId] = useState<string | undefined>(undefined);
+  const [uploadedFileHash, setUploadedFileHash] = useState<string | null>(null);
 
   // Recruiter Tamper Simulation Controls
   const [simulateTamper, setSimulateTamper] = useState(false);
@@ -248,6 +252,18 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
             >
               {verifying ? "Auditing Cryptographic Proof..." : "Verify Certificate"}
             </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => {
+                setLedgerTargetId(inputDid.trim() || undefined);
+                setShowLedgerModal(true);
+              }}
+              icon={<ShieldCheckIcon className="w-4 h-4 text-[#111410]" />}
+              className="cursor-pointer font-bold"
+            >
+              Cross-Validate Ledger
+            </Button>
           </div>
         </div>
 
@@ -400,13 +416,27 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
               </div>
             </div>
 
-            <button
-              onClick={() => handleCopy(result.credentialId)}
-              className="px-3.5 py-2 rounded-[10px] bg-white text-[#101418] text-[12px] font-semibold border border-current/20 hover:bg-black/5 flex items-center gap-1.5 transition-colors shrink-0"
-            >
-              <CopyIcon className="w-3.5 h-3.5" />
-              <span>{copied ? "Copied" : "Copy Audit Proof"}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setLedgerTargetId(result.credentialId);
+                  setShowLedgerModal(true);
+                }}
+                icon={<ShieldCheckIcon className="w-3.5 h-3.5 text-[#BEF52A]" />}
+                className="font-bold cursor-pointer shadow-xs"
+              >
+                Cross-Validate Ledger
+              </Button>
+              <button
+                onClick={() => handleCopy(result.credentialId)}
+                className="px-3.5 py-2 rounded-[10px] bg-white text-[#101418] text-[12px] font-semibold border border-current/20 hover:bg-black/5 flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <CopyIcon className="w-3.5 h-3.5" />
+                <span>{copied ? "Copied" : "Copy Credential ID"}</span>
+              </button>
+            </div>
           </div>
 
           {/* Cryptographic Evaluation Matrix */}
@@ -526,6 +556,15 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           </div>
         </div>
       )}
+
+      {/* Ledger Cross-Validation Modal */}
+      <LedgerCrossValidationModal
+        isOpen={showLedgerModal}
+        onClose={() => setShowLedgerModal(false)}
+        targetCredentialId={ledgerTargetId}
+        uploadedImageHash={uploadedFileHash || undefined}
+      />
     </div>
   );
 }
+

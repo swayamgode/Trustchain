@@ -1,5 +1,6 @@
 "use client";
 
+import { useTrustChain, type UserRole } from "../context/TrustChainContext";
 import {
   OverviewIcon,
   VerifyIcon,
@@ -11,6 +12,7 @@ import {
   NetworkIcon,
   ShieldCheckIcon,
   AuditIcon,
+  CrossValidateIcon,
 } from "./ui/Icons";
 
 interface SidebarProps {
@@ -19,18 +21,44 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeScreen, onNavigate }: SidebarProps) {
-  const navItems = [
-    { id: "overview", label: "Overview", icon: OverviewIcon },
-    { id: "issue", label: "College Issuance", icon: IssueIcon },
-    { id: "student", label: "Student Portal (QR)", icon: CredentialsIcon, badge: "QR" },
-    { id: "verify", label: "Recruiter Verification", icon: VerifyIcon },
-    { id: "registry", label: "Credentials Registry", icon: CredentialsIcon },
-    { id: "institutions", label: "Institutions & Keys", icon: InstitutionsIcon },
-    { id: "revocation", label: "Revocation Registry", icon: RevocationIcon },
-    { id: "audit", label: "Blockchain Audit", icon: AuditIcon },
-    { id: "network", label: "Decentralized Network", icon: NetworkIcon },
-    { id: "settings", label: "Settings", icon: SettingsIcon },
-  ];
+  const { activeRole } = useTrustChain();
+
+  const getNavItems = (role: UserRole) => {
+    switch (role) {
+      case "student":
+        return [
+          { id: "student", label: "My Certificates & Scans", icon: CredentialsIcon, badge: "QR" },
+          { id: "registry", label: "Public Anchor Registry", icon: OverviewIcon },
+        ];
+      case "recruiter":
+        return [
+          { id: "verify", label: "Candidate Verification", icon: VerifyIcon, badge: "Live" },
+          { id: "cross-validation", label: "Cross Validation", icon: CrossValidateIcon, badge: "Ledger" },
+          { id: "audit", label: "Cryptographic Proof Audit", icon: AuditIcon },
+        ];
+      case "network":
+        return [
+          { id: "network", label: "Validator Node Network", icon: NetworkIcon },
+          { id: "cross-validation", label: "Cross Validation", icon: CrossValidateIcon, badge: "Ledger" },
+          { id: "institutions", label: "Institutional Keys", icon: InstitutionsIcon },
+          { id: "audit", label: "Global Ledger", icon: AuditIcon },
+          { id: "overview", label: "Network Telemetry", icon: OverviewIcon },
+        ];
+      case "issuer":
+      default:
+        return [
+          { id: "overview", label: "College Overview", icon: OverviewIcon },
+          { id: "cross-validation", label: "Cross Validation", icon: CrossValidateIcon, badge: "Ledger" },
+          { id: "issue", label: "Issue Degrees & Bulk CSV", icon: IssueIcon, badge: "Issue" },
+          { id: "registry", label: "Credentials Registry", icon: CredentialsIcon },
+          { id: "revocation", label: "Revocation Manager", icon: RevocationIcon },
+          { id: "institutions", label: "Institutions & Keys", icon: InstitutionsIcon },
+          { id: "audit", label: "Blockchain Audit", icon: AuditIcon },
+        ];
+    }
+  };
+
+  const navItems = getNavItems(activeRole);
 
   return (
     <aside
