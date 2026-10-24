@@ -24,6 +24,14 @@ import {
 
 export type UserRole = "issuer" | "student" | "recruiter" | "network";
 
+export interface UserSession {
+  role: UserRole;
+  name: string;
+  email: string;
+  organization: string;
+  avatarLetter: string;
+}
+
 export interface BulkRecordInput {
   subjectName: string;
   subjectId: string;
@@ -36,6 +44,10 @@ export interface BulkRecordInput {
 interface TrustChainContextType {
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
+  currentUser: UserSession | null;
+  isLoggedIn: boolean;
+  loginAs: (role: UserRole) => void;
+  logout: () => void;
   institutions: Institution[];
   issuers: Issuer[];
   credentials: Credential[];
@@ -225,10 +237,43 @@ const INITIAL_AUDITS: AuditEvent[] = [
   },
 ];
 
+export const DEFAULT_USERS: Record<UserRole, UserSession> = {
+  issuer: {
+    role: "issuer",
+    name: "Dr. Evelyn Vance",
+    email: "e.vance@metropolitan.edu",
+    organization: "Metropolitan University (Registrar)",
+    avatarLetter: "MU",
+  },
+  student: {
+    role: "student",
+    name: "Bhavik Jain",
+    email: "bhavik.jain@alumni.edu",
+    organization: "Verified Student / Recipient",
+    avatarLetter: "BJ",
+  },
+  recruiter: {
+    role: "recruiter",
+    name: "Sarah Jenkins",
+    email: "s.jenkins@talent-verify.global",
+    organization: "Global Talent Verification & HR",
+    avatarLetter: "HR",
+  },
+  network: {
+    role: "network",
+    name: "Consensus Node Validator",
+    email: "node-validator@trustchain.network",
+    organization: "TrustChain Decentralized Validator Network",
+    avatarLetter: "TC",
+  },
+};
+
 const TrustChainContext = createContext<TrustChainContextType | undefined>(undefined);
 
 export function TrustChainProvider({ children }: { children: React.ReactNode }) {
   const [activeRole, setActiveRole] = useState<UserRole>("issuer");
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [institutions, setInstitutions] = useState<Institution[]>(INITIAL_INSTITUTIONS);
   const [issuers, setIssuers] = useState<Issuer[]>(INITIAL_ISSUERS);
   const [credentials, setCredentials] = useState<Credential[]>(INITIAL_CREDENTIALS);
@@ -237,6 +282,28 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-lead-7721");
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<SupabaseSyncStatus>("connecting");
   const [supabaseStatusMessage, setSupabaseStatusMessage] = useState<string>("Connecting to Supabase...");
+
+  const loginAs = (role: UserRole) => {
+    const user = DEFAULT_USERS[role];
+    setCurrentUser(user);
+    setActiveRole(role);
+    setIsLoggedIn(true);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tc_auth_role", role);
+      } catch (e) {}
+    }
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    setIsLoggedIn(false);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("tc_auth_role");
+      } catch (e) {}
+    }
+  };
 
   // Sync with Supabase Database
   const syncWithSupabase = async () => {
@@ -282,6 +349,13 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       if (storedInsts) setInstitutions(JSON.parse(storedInsts));
       const storedAudits = localStorage.getItem("tc_audits");
       if (storedAudits) setAuditEvents(JSON.parse(storedAudits));
+
+      const savedAuth = localStorage.getItem("tc_auth_role") as UserRole | null;
+      if (savedAuth && DEFAULT_USERS[savedAuth]) {
+        setCurrentUser(DEFAULT_USERS[savedAuth]);
+        setActiveRole(savedAuth);
+        setIsLoggedIn(true);
+      }
     } catch (e) {
       console.warn("Storage hydration bypassed");
     }
@@ -625,6 +699,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       value={{
         activeRole,
         setActiveRole,
+        currentUser,
+        isLoggedIn,
+        loginAs,
+        logout,
         institutions,
         issuers,
         credentials,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useTrustChain } from "../../context/TrustChainContext";
 import QRCodeCanvas from "../ui/QRCodeCanvas";
 import CertificateCard from "../ui/CertificateCard";
@@ -14,7 +14,10 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
   const [copiedLink, setCopiedLink] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [downloading, setDownloading] = useState<"jpg" | "pdf" | null>(null);
   const [viewMode, setViewMode] = useState<"photocopy" | "digital">("photocopy");
+  const certRef = useRef<HTMLDivElement>(null);
 
   // Group credentials by student
   const studentList = Array.from(
@@ -39,6 +42,21 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
     navigator.clipboard?.writeText(verificationUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleDownload = async (format: "jpg" | "pdf") => {
+    if (!certRef.current) return;
+    setDownloading(format);
+    try {
+      const { downloadCertificate } = await import("../../lib/downloadCertificate");
+      const safeName = `${selectedCert?.subjectName || "certificate"}_${selectedCert?.type || "doc"}`.replace(/[^a-z0-9_\-]/gi, "_");
+      await downloadCertificate(certRef.current, safeName, format);
+    } catch (e) {
+      console.error("Download failed:", e);
+    } finally {
+      setDownloading(null);
+      setShowDownloadModal(false);
+    }
   };
 
   return (
@@ -104,14 +122,23 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<span className="w-2 h-2 rounded-full bg-[#BEF52A]" />}
-              onClick={() => setShowShareModal(true)}
-            >
-              Share with Recruiter
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowDownloadModal(true)}
+              >
+                ⬇ Download
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<span className="w-2 h-2 rounded-full bg-[#BEF52A]" />}
+                onClick={() => setShowShareModal(true)}
+              >
+                Share with Recruiter
+              </Button>
+            </div>
           </div>
 
           {selectedCert ? (
@@ -119,20 +146,22 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               {/* PHOTOCOPY SCAN VIEW */}
               {viewMode === "photocopy" && (
                 <div className="space-y-4 animate-fade-in">
-                  <CertificateCard
-                    cert={{
-                      id: selectedCert.id,
-                      type: selectedCert.type,
-                      subjectName: selectedCert.subjectName,
-                      subjectId: selectedCert.subjectId,
-                      issuingInstitution: selectedCert.issuingInstitution,
-                      issuanceDate: selectedCert.issueDate,
-                      status: selectedCert.status as any,
-                      documentImage: selectedCert.documentImage,
-                    }}
-                    verificationUrl={verificationUrl}
-                    onInspectFull={() => setShowFullscreenPhoto(true)}
-                  />
+                  <div ref={certRef}>
+                    <CertificateCard
+                      cert={{
+                        id: selectedCert.id,
+                        type: selectedCert.type,
+                        subjectName: selectedCert.subjectName,
+                        subjectId: selectedCert.subjectId,
+                        issuingInstitution: selectedCert.issuingInstitution,
+                        issuanceDate: selectedCert.issueDate,
+                        status: selectedCert.status as any,
+                        documentImage: selectedCert.documentImage,
+                      }}
+                      verificationUrl={verificationUrl}
+                      onInspectFull={() => setShowFullscreenPhoto(true)}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -372,6 +401,63 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                 Done
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Download Modal */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 bg-[#101418]/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-[20px] max-w-sm w-full p-6 shadow-2xl border border-[#E8E9E5] space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E9E5]">
+              <h3 className="text-[17px] font-bold text-[#101418]">Download Certificate</h3>
+              <button
+                onClick={() => setShowDownloadModal(false)}
+                className="w-7 h-7 rounded-full hover:bg-[#F2F3EF] flex items-center justify-center text-[#626971]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[13px] text-[#626971]">
+              Download your certificate with the embedded verification QR code. Send the file to a recruiter — they can verify authenticity without any database access.
+            </p>
+
+            <div className="bg-[#F7F7F4] rounded-[12px] p-3 text-[12px] space-y-1">
+              <div className="font-bold text-[#101418]">{selectedCert?.subjectName}</div>
+              <div className="text-[#626971]">{selectedCert?.type} · {selectedCert?.issuingInstitution}</div>
+              <div className="text-[#159447] font-semibold">✔ Cryptographically Signed</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                disabled={!!downloading}
+                onClick={() => handleDownload("jpg")}
+                className="flex flex-col items-center gap-2 p-4 rounded-[14px] border-2 border-[#E8E9E5] hover:border-[#111410] hover:bg-[#F7F7F4] transition-all disabled:opacity-50"
+              >
+                <span className="text-3xl">🖼️</span>
+                <span className="text-[13px] font-bold text-[#101418]">
+                  {downloading === "jpg" ? "Generating…" : "Download JPG"}
+                </span>
+                <span className="text-[11px] text-[#8A9097]">Image file</span>
+              </button>
+
+              <button
+                disabled={!!downloading}
+                onClick={() => handleDownload("pdf")}
+                className="flex flex-col items-center gap-2 p-4 rounded-[14px] border-2 border-[#E8E9E5] hover:border-[#111410] hover:bg-[#F7F7F4] transition-all disabled:opacity-50"
+              >
+                <span className="text-3xl">📄</span>
+                <span className="text-[13px] font-bold text-[#101418]">
+                  {downloading === "pdf" ? "Generating…" : "Download PDF"}
+                </span>
+                <span className="text-[11px] text-[#8A9097]">PDF document</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-center text-[#8A9097]">
+              💡 Switch to <strong>Physical Degree Photocopy</strong> view before downloading for the official certificate image.
+            </p>
           </div>
         </div>
       )}

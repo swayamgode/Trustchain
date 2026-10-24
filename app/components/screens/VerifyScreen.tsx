@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useTrustChain } from "../../context/TrustChainContext";
 import {
   VerifyIcon,
@@ -87,6 +87,9 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
   const [result, setResult] = useState<any>(SCENARIOS.valid);
   const [inputDid, setInputDid] = useState("did:trust:cred-2024-MU-00192");
   const [copied, setCopied] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "found" | "notfound">("idle");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Recruiter Tamper Simulation Controls
   const [simulateTamper, setSimulateTamper] = useState(false);
@@ -185,6 +188,50 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    setScanStatus("scanning");
+    setUploadedImage(null);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target?.result as string;
+      setUploadedImage(dataUrl);
+
+      try {
+        // Draw image to canvas and extract pixel data for QR scanning
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+          const jsQR = (await import("jsqr")).default;
+          const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+
+          if (qrCode?.data) {
+            // Extract credential ID from URL (e.g. ?verify=cred-xxx)
+            let credId = qrCode.data;
+            const urlMatch = qrCode.data.match(/[?&]verify=([^&]+)/);
+            if (urlMatch) credId = urlMatch[1];
+            setInputDid(credId);
+            setScanStatus("found");
+          } else {
+            setScanStatus("notfound");
+          }
+        };
+        img.src = dataUrl;
+      } catch (err) {
+        console.error("QR scan error:", err);
+        setScanStatus("notfound");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="p-6 md:p-8 max-w-[1300px] mx-auto space-y-7 animate-fade-in">
       {/* Header */}
@@ -249,6 +296,54 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
               {verifying ? "Auditing Cryptographic Proof..." : "Verify Certificate"}
             </Button>
           </div>
+        </div>
+
+        {/* Upload Certificate File (from student download) */}
+        <div
+          className="rounded-[14px] border-2 border-dashed border-[#D0D3CB] bg-[#F7F7F4] p-5 space-y-3 cursor-pointer hover:border-[#9FD30C] hover:bg-[#F0F7E6] transition-all"
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFileUpload(f); }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,application/pdf"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+          />
+
+          {uploadedImage && scanStatus !== "idle" ? (
+            <div className="flex items-start gap-4">
+              <img src={uploadedImage} alt="Uploaded certificate" className="w-28 h-20 object-cover rounded-[10px] border border-[#E8E9E5] shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="text-[13px] font-bold text-[#101418]">
+                  {scanStatus === "scanning" && "🔍 Scanning QR code..."}
+                  {scanStatus === "found" && "✅ Credential ID extracted from QR code"}
+                  {scanStatus === "notfound" && "⚠️ No QR code found — enter ID manually"}
+                </div>
+                {scanStatus === "found" && (
+                  <div className="text-[11px] font-mono text-[#159447] bg-[#E8F8E8] px-2 py-1 rounded-[6px] break-all">
+                    {inputDid}
+                  </div>
+                )}
+                {scanStatus === "found" && (
+                  <Button variant="primary" size="sm" onClick={(e) => { e.stopPropagation(); handleRecruiterVerify(); }}>
+                    Verify Now →
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center space-y-1 py-2">
+              <div className="text-3xl">📎</div>
+              <div className="text-[13px] font-bold text-[#101418]">Upload Certificate File</div>
+              <div className="text-[12px] text-[#626971]">
+                Drag & drop or click to upload a JPG/PDF certificate received from a student.<br />
+                The QR code will be scanned and the credential ID extracted automatically.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Interactive Recruiter Tamper Simulation Sandbox */}

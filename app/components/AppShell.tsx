@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 import dynamic from "next/dynamic";
-import { TrustChainProvider } from "../context/TrustChainContext";
+import { TrustChainProvider, useTrustChain, type UserRole } from "../context/TrustChainContext";
+import LoginScreen from "./screens/LoginScreen";
 
 const OverviewScreen = dynamic(() => import("./screens/OverviewScreen"), { ssr: false });
 const VerifyScreen = dynamic(() => import("./screens/VerifyScreen"), { ssr: false });
@@ -17,8 +18,30 @@ const AuditScreen = dynamic(() => import("./screens/AuditScreen"), { ssr: false 
 const NetworkScreen = dynamic(() => import("./screens/NetworkScreen"), { ssr: false });
 const SettingsScreen = dynamic(() => import("./screens/SettingsScreen"), { ssr: false });
 
-export default function AppShell() {
+function AppShellContent() {
+  const { isLoggedIn, activeRole } = useTrustChain();
   const [activeScreen, setActiveScreen] = useState("overview");
+
+  const getDefaultScreen = (role: UserRole) => {
+    switch (role) {
+      case "student":
+        return "student";
+      case "recruiter":
+        return "verify";
+      case "network":
+        return "network";
+      case "issuer":
+      default:
+        return "overview";
+    }
+  };
+
+  // Sync screen when role changes
+  useEffect(() => {
+    if (isLoggedIn) {
+      setActiveScreen(getDefaultScreen(activeRole));
+    }
+  }, [activeRole, isLoggedIn]);
 
   const renderScreen = () => {
     switch (activeScreen) {
@@ -47,20 +70,38 @@ export default function AppShell() {
     }
   };
 
+  // If not logged in, show the 1-Click Institutional Gateway Login Screen
+  if (!isLoggedIn) {
+    return (
+      <LoginScreen
+        onLoginSuccess={(role) => {
+          setActiveScreen(getDefaultScreen(role));
+        }}
+      />
+    );
+  }
+
+  // Once logged in, show role-isolated dashboard environment
+  return (
+    <div className="flex h-screen overflow-hidden bg-[#F7F7F4]">
+      {/* 274px Fixed Role-Filtered Sidebar */}
+      <Sidebar activeScreen={activeScreen} onNavigate={setActiveScreen} />
+
+      {/* Main Content Area */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-[#F7F7F4]">
+        <TopNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+        <main className="flex-1 overflow-y-auto bg-[#F7F7F4]">
+          {renderScreen()}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default function AppShell() {
   return (
     <TrustChainProvider>
-      <div className="flex h-screen overflow-hidden bg-[#F7F7F4]">
-        {/* 274px Fixed Sidebar */}
-        <Sidebar activeScreen={activeScreen} onNavigate={setActiveScreen} />
-
-        {/* Main Content Area */}
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-[#F7F7F4]">
-          <TopNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
-          <main className="flex-1 overflow-y-auto bg-[#F7F7F4]">
-            {renderScreen()}
-          </main>
-        </div>
-      </div>
+      <AppShellContent />
     </TrustChainProvider>
   );
 }
