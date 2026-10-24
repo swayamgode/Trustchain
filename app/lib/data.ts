@@ -182,6 +182,22 @@ export const DEMO_ISSUERS: Issuer[] = [
 
 export const DEMO_CREDENTIALS: Credential[] = [
   {
+    id: "cred-2024-LEAD-08819",
+    type: "Course Completion Certificate",
+    issuingInstitution: "Lead Academy",
+    issuerId: "issuer-001",
+    subjectId: "sub:B8A1V9I2K7J4A3I0",
+    subjectName: "Bhavik Jain",
+    issueDate: "2024-02-18",
+    status: "active",
+    fingerprint: "sha256:7f9a2e4b6c8d0e1f3a5b7c9d1e3f5a7b",
+    txRef: "0x88e2f3a4b5c6d7e8f9a0b1c2d3e4f5b9",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "tc:registry:0xf4a2b8c1d9e7f3a6",
+    did: "did:trustchain:lead:8f3a2b91c4d7e6f0a1b2c3d4e5f6a7b8",
+    documentImage: "/lead_certificate_bg.jpg",
+  },
+  {
     id: "cred-2024-WIT-09182",
     type: "Academic Degree",
     issuingInstitution: "Western Institute of Technology",

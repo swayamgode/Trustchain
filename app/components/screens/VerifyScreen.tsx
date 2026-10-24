@@ -488,7 +488,7 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
                 </h4>
                 <div className="h-28 rounded-[10px] overflow-hidden border border-[#D9DCD5] bg-white relative group">
                   <img
-                    src="/sample_degree.jpg"
+                    src={result.credential?.documentImage || "/lead_certificate_bg.jpg"}
                     alt="Physical Diploma Scan"
                     className="w-full h-full object-cover"
                   />

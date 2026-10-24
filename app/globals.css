@@ -56,6 +56,16 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+.font-script {
+  font-family: var(--font-script), 'Brush Script MT', cursive;
+}
+.font-cinzel {
+  font-family: var(--font-cinzel), 'Times New Roman', serif;
+}
+.font-serif-classic {
+  font-family: var(--font-serif), Georgia, serif;
+}
+
 * {
   box-sizing: border-box;
 }

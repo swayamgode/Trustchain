@@ -25,6 +25,16 @@ Priya Patel,did:trust:student-mu-7721,Bachelor of Science in Data Science,School
 
 const PRESETS = [
   {
+    name: "Bhavik Jain (Course Completion)",
+    title: "Advanced UI/UX Design with LIVE Project",
+    institution: "Lead Academy",
+    department: "School of Design & Creative Technologies",
+    subjectName: "Bhavik Jain",
+    subjectId: "did:trust:student-lead-7721",
+    honours: "Distinction with Live Project Excellence",
+    gpa: "4.00 / 4.00",
+  },
+  {
     name: "Alex Chen (Computer Science B.S.)",
     title: "Bachelor of Science in Computer Science",
     institution: "Metropolitan University",
@@ -77,7 +87,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
   const [signProgress, setSignProgress] = useState(0);
   const [issuedCred, setIssuedCred] = useState<any>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<string>("/sample_degree.jpg");
+  const [uploadedImage, setUploadedImage] = useState<string>("/lead_certificate_bg.jpg");
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
