@@ -14,9 +14,9 @@ function buildTransport() {
     port: SMTP_PORT,
     secure: SMTP_PORT === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    connectionTimeout: 3000,
-    greetingTimeout: 3000,
-    socketTimeout: 3000,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   });
 }
 
@@ -284,31 +284,31 @@ export async function POST(req: Request) {
     const finalVerificationUrl =
       verificationUrl || `https://trustchain.network/verify/${credentialId || "cred"}`;
 
-    // Generate inline QR PNG buffer
-    const qrBuffer = await QRCode.toBuffer(finalVerificationUrl, {
-      margin: 1,
-      width: 240,
-      errorCorrectionLevel: "H",
-      color: { dark: "#0F172A", light: "#FFFFFF" },
-    });
-
-    // Generate official Certificate PDF attachment
-    const pdfBuffer = attachmentBase64
-      ? Buffer.from(attachmentBase64.split(",")[1] || attachmentBase64, "base64")
-      : await generateCertificatePdf({
-          studentName,
-          credentialTitle,
-          institutionName: institutionName || "Metropolitan University",
-          credentialId: credentialId || "CRED-UNKNOWN",
-          verificationUrl: finalVerificationUrl,
-          subjectId,
-          department,
-          honours,
-          gpa,
-          issueDate,
-          fingerprint,
-          txRef,
-        });
+    // Generate QR buffer and PDF in parallel
+    const [qrBuffer, pdfBuffer] = await Promise.all([
+      QRCode.toBuffer(finalVerificationUrl, {
+        margin: 1,
+        width: 240,
+        errorCorrectionLevel: "H",
+        color: { dark: "#0F172A", light: "#FFFFFF" },
+      }),
+      attachmentBase64
+        ? Promise.resolve(Buffer.from(attachmentBase64.split(",")[1] || attachmentBase64, "base64"))
+        : generateCertificatePdf({
+            studentName,
+            credentialTitle,
+            institutionName: institutionName || "Metropolitan University",
+            credentialId: credentialId || "CRED-UNKNOWN",
+            verificationUrl: finalVerificationUrl,
+            subjectId,
+            department,
+            honours,
+            gpa,
+            issueDate,
+            fingerprint,
+            txRef,
+          }),
+    ]);
 
     const cleanId = (credentialId || "certificate").replace(/[^a-zA-Z0-9_-]/g, "_");
     const certFilename = attachmentFilename || `Official_Certificate_${cleanId}.pdf`;
