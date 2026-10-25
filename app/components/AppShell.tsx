@@ -9,6 +9,7 @@ import LoginScreen from "./screens/LoginScreen";
 
 const OverviewScreen = dynamic(() => import("./screens/OverviewScreen"), { ssr: false });
 const VerifyScreen = dynamic(() => import("./screens/VerifyScreen"), { ssr: false });
+const CrossValidationScreen = dynamic(() => import("./screens/CrossValidationScreen"), { ssr: false });
 const IssueScreen = dynamic(() => import("./screens/IssueScreen"), { ssr: false });
 const StudentPortalScreen = dynamic(() => import("./screens/StudentPortalScreen"), { ssr: false });
 const RegistryScreen = dynamic(() => import("./screens/RegistryScreen"), { ssr: false });
@@ -21,6 +22,11 @@ const SettingsScreen = dynamic(() => import("./screens/SettingsScreen"), { ssr: 
 function AppShellContent() {
   const { isLoggedIn, activeRole } = useTrustChain();
   const [activeScreen, setActiveScreen] = useState("overview");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const getDefaultScreen = (role: UserRole) => {
     switch (role) {
@@ -47,6 +53,8 @@ function AppShellContent() {
     switch (activeScreen) {
       case "overview":
         return <OverviewScreen onNavigate={setActiveScreen} />;
+      case "cross-validation":
+        return <CrossValidationScreen onNavigate={setActiveScreen} />;
       case "verify":
         return <VerifyScreen onNavigate={setActiveScreen} />;
       case "issue":
@@ -63,12 +71,17 @@ function AppShellContent() {
         return <AuditScreen onNavigate={setActiveScreen} />;
       case "network":
         return <NetworkScreen onNavigate={setActiveScreen} />;
+      case "cross-validation":
+        return <CrossValidationScreen onNavigate={setActiveScreen} />;
       case "settings":
         return <SettingsScreen />;
       default:
         return <OverviewScreen onNavigate={setActiveScreen} />;
     }
   };
+
+  // Avoid SSR/client hydration mismatch (isLoggedIn reads from localStorage)
+  if (!mounted) return null;
 
   // If not logged in, show the 1-Click Institutional Gateway Login Screen
   if (!isLoggedIn) {

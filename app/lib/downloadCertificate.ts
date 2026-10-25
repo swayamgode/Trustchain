@@ -14,8 +14,13 @@ export async function downloadCertificate(
 
   let finalCanvas: HTMLCanvasElement;
 
+  const hasOverlayInDom = Boolean(element.querySelector("[data-trustchain-qr]"));
+
   if (certImg && certImg.complete && certImg.naturalWidth > 0) {
-    finalCanvas = await composeCertificateCanvas(certImg, verificationUrl);
+    finalCanvas = await composeCertificateCanvas(
+      certImg,
+      hasOverlayInDom ? verificationUrl : undefined
+    );
   } else {
     // Fallback: html2canvas for the digital template view
     finalCanvas = await captureWithHtml2Canvas(element);

@@ -42,8 +42,12 @@ export interface Credential {
   revocationDate?: string;
   revocationReason?: string;
   did: string;
+  recipientEmail?: string;
   documentImage?: string;
   documentImageHash?: string;
+  department?: string;
+  gpa?: string;
+  honours?: string;
 }
 
 export interface AuditEvent {
@@ -54,6 +58,7 @@ export interface AuditEvent {
     | "credential_issuance"
     | "credential_verification"
     | "credential_revocation"
+    | "cross_college_validation"
     | "failed_auth";
   actor: string;
   timestamp: string;
@@ -80,6 +85,70 @@ export interface VerificationCheck {
   explanation: string;
   technical: string;
 }
+
+export interface CollegePeerValidation {
+  collegeId: string;
+  collegeName: string;
+  status: "pending" | "verified" | "fault";
+  timestamp?: string;
+  signature?: string;
+  reason?: string;
+}
+
+export interface ConsortiumLedgerRecord {
+  id: string;
+  credentialId: string;
+  studentName: string;
+  studentId: string;
+  degreeTitle: string;
+  department: string;
+  gpa: string;
+  firstCollegeId: string;
+  firstCollegeName: string;
+  firstCollegeStatus: "not_verified" | "verified_and_issued" | "fault";
+  firstCollegeReason?: string;
+  firstCollegeTimestamp?: string;
+  peerValidations: CollegePeerValidation[];
+  isUpdated: boolean;
+  isTampered: boolean;
+  tamperDetails?: string;
+  blockNumber: number;
+  blockHash: string;
+  prevBlockHash: string;
+  merkleRoot: string;
+  txHash: string;
+  payloadHash: string;
+  documentImage?: string;
+  documentImageHash?: string;
+  updatedAt: string;
+}
+
+export interface BlockchainBlock {
+  height: number;
+  hash: string;
+  prevHash: string;
+  merkleRoot: string;
+  timestamp: string;
+  validatorNode: string;
+  validatorDid: string;
+  signature: string;
+  nonce: number;
+  status: "verified" | "fault" | "pending";
+  recordId: string;
+  studentName: string;
+  credentialId: string;
+  firstCollege: string;
+  firstCollegeStatus: "not_verified" | "verified_and_issued" | "fault";
+  issueReason?: string;
+  peerEndorsements: {
+    collegeName: string;
+    status: "pending" | "verified" | "fault";
+    reason?: string;
+  }[];
+  payloadHash: string;
+  rawPayload?: any;
+}
+
 
 // ─── Demo Institutions ────────────────────────────────────────────────────────
 

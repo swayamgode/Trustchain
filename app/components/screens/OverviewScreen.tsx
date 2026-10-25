@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTrustChain } from "../../context/TrustChainContext";
 import {
   IssueIcon,
-  VerifyIcon,
   ArrowRightIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -12,6 +11,7 @@ import {
   MoreHorizontalIcon,
   ShieldCheckIcon,
   AlertCircleIcon,
+  BlocksIcon,
 } from "../ui/Icons";
 import MetricCard from "../ui/MetricCard";
 import StatusBadge from "../ui/StatusBadge";
@@ -23,7 +23,7 @@ interface OverviewScreenProps {
 }
 
 export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
-  const { institutions, credentials, auditEvents, activeInstitution } = useTrustChain();
+  const { institutions, credentials, auditEvents, activeInstitution, ledgerRecords, blockchainBlocks } = useTrustChain();
   const [copiedDid, setCopiedDid] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState<any>(null);
 
@@ -51,9 +51,9 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
     },
     {
       step: "3",
-      title: "Cross-Org Verification",
-      desc: "Zero-database signature validation",
-      screen: "verify",
+      title: "Consortium Ledger",
+      desc: "Peer validation & visual block tracking",
+      screen: "cross-validation",
     },
     {
       step: "4",
@@ -144,7 +144,7 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
         </div>
       </Card>
 
-      {/* 3. Primary Actions: Two Large Horizontal Cards */}
+      {/* 3. Primary Actions: Two Large Workflow Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Issue Credential Card */}
         <div
@@ -158,51 +158,57 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
               <IssueIcon className="w-6 h-6 text-[#BEF52A]" />
             </div>
             <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#BEF52A] text-[#172000]">
-              Workflow 2: Record Issuance
+              Workflow 2: Issuance
             </span>
           </div>
 
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-[20px] font-bold tracking-tight text-white group-hover:text-[#EFFBCB] transition-colors">
-                Issue a Verifiable Credential
+                Issue a Credential
               </h2>
               <div className="w-8 h-8 rounded-full bg-[#282C27] flex items-center justify-center text-white group-hover:bg-[#BEF52A] group-hover:text-[#111410] transition-colors">
                 <ArrowRightIcon className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-[13px] text-[#A6ADB7] mt-1.5 leading-relaxed max-w-[420px]">
+            <p className="text-[13px] text-[#A6ADB7] mt-1.5 leading-relaxed">
               Cryptographically sign academic degrees, licenses, and certificates with ED25519 signatures anchored to the trust registry.
             </p>
           </div>
         </div>
 
-        {/* Verify Credential Card */}
+        {/* Cross-College Consortium Ledger Card */}
         <div
-          onClick={() => onNavigate("verify")}
-          className="group relative bg-white border border-[#E8E9E5] hover:border-[#D9DCD5] rounded-[16px] p-6 text-[#101418] cursor-pointer interactive shadow-sm hover:shadow-md flex flex-col justify-between"
+          onClick={() => onNavigate("cross-validation")}
+          className="group relative bg-[#111410] border border-[#111410] hover:border-[#282C27] rounded-[16px] p-6 text-white cursor-pointer interactive shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden"
         >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#BEF52A]/5 rounded-bl-[100px] pointer-events-none group-hover:bg-[#BEF52A]/10 transition-colors" />
+
           <div className="flex items-start justify-between mb-6">
-            <div className="w-12 h-12 rounded-[12px] bg-[#F2F3EF] border border-[#E8E9E5] flex items-center justify-center text-[#101418] group-hover:scale-105 transition-transform">
-              <VerifyIcon className="w-6 h-6 text-[#101418]" />
+            <div className="w-12 h-12 rounded-[12px] bg-[#282C27] border border-[#3A4039] flex items-center justify-center text-[#BEF52A] group-hover:scale-105 transition-transform">
+              <BlocksIcon className="w-6 h-6 text-[#BEF52A]" />
             </div>
-            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#F2F3EF] text-[#626971]">
-              Workflow 3: Cross-Org Verification
+            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#BEF52A] text-[#172000]">
+              Workflow 3: Consortium Ledger
             </span>
           </div>
 
           <div>
             <div className="flex items-center justify-between">
-              <h2 className="text-[20px] font-bold tracking-tight text-[#101418] group-hover:text-[#1764C0] transition-colors">
-                Cross-Institution Verification
+              <h2 className="text-[20px] font-bold tracking-tight text-white group-hover:text-[#EFFBCB] transition-colors">
+                Cross-College Ledger & Blocks
               </h2>
-              <div className="w-8 h-8 rounded-full bg-[#F2F3EF] flex items-center justify-center text-[#101418] group-hover:bg-[#111410] group-hover:text-white transition-colors">
+              <div className="w-8 h-8 rounded-full bg-[#282C27] flex items-center justify-center text-white group-hover:bg-[#BEF52A] group-hover:text-[#111410] transition-colors">
                 <ArrowRightIcon className="w-4 h-4" />
               </div>
             </div>
-            <p className="text-[13px] text-[#626971] mt-1.5 leading-relaxed max-w-[420px]">
-              Verify credential signatures without database access: validate cryptographic proof, issuer public key, tamper status, and live revocation.
+            <p className="text-[13px] text-[#A6ADB7] mt-1.5 leading-relaxed">
+              Cross-verify across college ledgers: First College verify & fault flags with blockchain reasons, peer endorsements, and visual block tracking.
             </p>
+            <div className="mt-4 pt-3 border-t border-[#282C27] flex items-center justify-between text-[11px]">
+              <span className="text-[#A6ADB7]">{ledgerRecords?.length || 0} Records</span>
+              <span className="font-mono text-[#BEF52A] font-semibold">{blockchainBlocks?.length || 0} Blocks Anchored</span>
+            </div>
           </div>
         </div>
       </div>
@@ -418,15 +424,15 @@ export default function OverviewScreen({ onNavigate }: OverviewScreenProps) {
 
             <div className="space-y-2.5">
               <div
-                onClick={() => onNavigate("verify")}
+                onClick={() => onNavigate("cross-validation")}
                 className="p-3 rounded-[12px] bg-[#F7F7F4] hover:bg-[#F2F3EF] cursor-pointer transition-colors border border-[#E8E9E5] flex items-center justify-between"
               >
                 <div>
                   <div className="text-[13px] font-semibold text-[#101418]">
-                    Workflow 3: Cross-Org Verification
+                    Workflow 3: Cross-College Consortium Ledger
                   </div>
                   <div className="text-[11px] text-[#626971] mt-0.5">
-                    Test verification without database access
+                    Peer cross-validation & visual blockchain blocks
                   </div>
                 </div>
                 <ChevronRightIcon className="w-4 h-4 text-[#8A9097] shrink-0 ml-2" />

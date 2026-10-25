@@ -10,7 +10,7 @@ import StatusBadge from "../ui/StatusBadge";
 import { CopyIcon, CheckCircleIcon, ShieldCheckIcon, ArrowRightIcon } from "../ui/Icons";
 
 export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
-  const { credentials, selectedStudentDid, setSelectedStudentDid, updateCredentialImageHash } = useTrustChain();
+  const { credentials, currentUser, updateCredentialImageHash } = useTrustChain();
   const [copiedLink, setCopiedLink] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showFullscreenPhoto, setShowFullscreenPhoto] = useState(false);
@@ -18,21 +18,25 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
   const [downloading, setDownloading] = useState<"jpg" | "pdf" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"photocopy" | "digital">("photocopy");
+  const [selectedCertId, setSelectedCertId] = useState<string>("");
   const certRef = useRef<HTMLDivElement>(null);
 
-  // Group credentials by student
-  const studentList = Array.from(
-    new Set(credentials.map((c) => JSON.stringify({ name: c.subjectName, did: c.subjectId })))
-  ).map((str) => JSON.parse(str) as { name: string; did: string });
+  // Strict isolation: student only sees documents matching their authenticated account
+  const currentEmail = currentUser?.email?.toLowerCase().trim();
+  const currentName = currentUser?.name?.toLowerCase().trim();
 
-  const activeStudentCreds = credentials.filter(
-    (c) => c.subjectId === selectedStudentDid
-  );
+  const myCredentials = credentials.filter((c) => {
+    const credEmail = c.recipientEmail?.toLowerCase().trim();
+    if (currentEmail && credEmail && currentEmail === credEmail) return true;
+    if (currentName && c.subjectName.toLowerCase().trim() === currentName) return true;
+    if (currentEmail && c.subjectId.toLowerCase().includes(currentEmail.split("@")[0].toLowerCase())) return true;
+    return false;
+  });
 
   const selectedCert =
-    activeStudentCreds[0] ||
-    credentials.find((c) => c.subjectName.toLowerCase().includes("bhavik")) ||
-    credentials[0];
+    myCredentials.find((c) => c.id === selectedCertId) ||
+    myCredentials[0];
+
   const degreePhoto = selectedCert?.documentImage || "/lead_certificate_bg.jpg";
 
   const verificationUrl = typeof window !== "undefined"
@@ -46,12 +50,10 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
   };
 
   const handleDownload = async (format: "jpg" | "pdf") => {
-    // Ensure photocopy view is active so certRef is mounted
     if (viewMode !== "photocopy") setViewMode("photocopy");
     setDownloading(format);
     setDownloadError(null);
 
-    // Wait for React to render the photocopy view
     await new Promise((r) => setTimeout(r, 150));
 
     if (!certRef.current) {
@@ -83,51 +85,72 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
     }
   };
 
-
   return (
     <div className="p-6 md:p-8 max-w-[1300px] mx-auto space-y-7 animate-fade-in">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#E8E9E5]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[12px] font-bold uppercase tracking-wider text-[#159447] bg-[#E8F8E8] px-2.5 py-0.5 rounded-full">
-              Student / Recipient Portal
+            <span className="text-[12px] font-bold uppercase tracking-wider text-[#159447] bg-[#E8F8E8] px-2.5 py-0.5 rounded-full border border-[#CEF0CE]">
+              🔒 Private Recipient Portal
+            </span>
+            <span className="text-[11px] font-semibold text-[#626971]">
+              Strict Access Control Enabled
             </span>
           </div>
           <h1 className="text-[28px] font-extrabold text-[#101418] tracking-tight mt-1">
             My Verifiable Documents & Certificates
           </h1>
           <p className="text-[14px] text-[#626971]">
-            View original physical degree scans and share cryptographically verifiable documents with recruiters via QR code.
+            View your authentic physical document photocopy scans and share instant tamper-proof verification proofs with recruiters.
           </p>
         </div>
 
-        {/* Student Switcher */}
-        <div className="flex items-center gap-2 bg-white p-2 rounded-[12px] border border-[#E8E9E5]">
-          <span className="text-[12px] font-bold text-[#8A9097] px-1">Student:</span>
-          <select
-            value={selectedStudentDid}
-            onChange={(e) => setSelectedStudentDid(e.target.value)}
-            className="text-[13px] font-semibold text-[#101418] bg-transparent focus:outline-none cursor-pointer"
-          >
-            {studentList.map((s) => (
-              <option key={s.did} value={s.did}>
-                {s.name} ({s.did})
-              </option>
-            ))}
-          </select>
+        {/* Authenticated Student Identity & Document Selector */}
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+          {myCredentials.length > 1 && (
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-[12px] border border-[#E8E9E5] shadow-2xs">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8A9097]">Switch Doc:</span>
+              <select
+                value={selectedCert?.id}
+                onChange={(e) => setSelectedCertId(e.target.value)}
+                className="text-[13px] font-bold text-[#101418] bg-transparent focus:outline-none cursor-pointer max-w-[190px] truncate"
+              >
+                {myCredentials.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.type}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 bg-white px-3.5 py-2 rounded-[14px] border border-[#E8E9E5] shadow-2xs">
+            <div className="w-8 h-8 rounded-full bg-[#EFF6FF] text-[#1E3A8A] font-extrabold text-xs flex items-center justify-center border border-[#93C5FD]">
+              {currentUser?.avatarLetter || "ST"}
+            </div>
+            <div className="text-left">
+              <div className="text-[13px] font-bold text-[#101418] leading-tight flex items-center gap-1.5">
+                <span>{currentUser?.name || "Student"}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#159447]" />
+              </div>
+              <div className="text-[11px] font-mono text-[#626971]">
+                {currentUser?.email || "student@mu.edu"}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column (7 cols): Document Presentation (Photocopy Scan or Digital) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-1 bg-white p-1 rounded-[10px] border border-[#E8E9E5]">
+            <div className="flex items-center gap-1 bg-white p-1 rounded-[10px] border border-[#E8E9E5] shrink-0">
               <button
                 onClick={() => setViewMode("photocopy")}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold whitespace-nowrap transition-all ${
                   viewMode === "photocopy"
                     ? "bg-[#111410] text-white"
                     : "text-[#626971] hover:text-[#101418]"
@@ -137,7 +160,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
               <button
                 onClick={() => setViewMode("digital")}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold whitespace-nowrap transition-all ${
                   viewMode === "digital"
                     ? "bg-[#111410] text-white"
                     : "text-[#626971] hover:text-[#101418]"
@@ -147,10 +170,11 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="secondary"
                 size="sm"
+                className="whitespace-nowrap"
                 onClick={() => setShowDownloadModal(true)}
               >
                 ⬇ Download
@@ -158,6 +182,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               <Button
                 variant="primary"
                 size="sm"
+                className="whitespace-nowrap"
                 icon={<span className="w-2 h-2 rounded-full bg-[#BEF52A]" />}
                 onClick={() => setShowShareModal(true)}
               >
@@ -182,6 +207,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                         issuanceDate: selectedCert.issueDate,
                         status: selectedCert.status as any,
                         documentImage: selectedCert.documentImage,
+                        gpa: selectedCert.gpa,
                       }}
                       verificationUrl={verificationUrl}
                       onInspectFull={() => setShowFullscreenPhoto(true)}
@@ -268,7 +294,18 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               )}
             </div>
           ) : (
-            <Card>No credential found for this student.</Card>
+            <Card className="text-center py-12 space-y-4">
+              <div className="w-16 h-16 rounded-full bg-[#EFF6FF] text-[#1E3A8A] flex items-center justify-center mx-auto text-2xl font-bold border border-[#BFDBFE]">
+                🔒
+              </div>
+              <h3 className="text-[18px] font-bold text-[#101418]">No Documents Found in Your Private Vault</h3>
+              <p className="text-[13px] text-[#626971] max-w-md mx-auto">
+                You are authenticated as <strong>{currentUser?.email || "student"}</strong>. For privacy and security, documents belonging to other students are strictly isolated and hidden from your view.
+              </p>
+              <p className="text-[12px] text-[#159447] font-semibold">
+                Once your university or institute issues a certificate to your email address, it will automatically appear here.
+              </p>
+            </Card>
           )}
         </div>
 
@@ -327,19 +364,44 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
           </Card>
 
           <Card className="space-y-3">
-            <h3 className="text-[15px] font-bold text-[#101418]">
-              All My Issued Documents ({activeStudentCreds.length})
-            </h3>
+            <div className="flex items-center justify-between pb-2 border-b border-[#E8E9E5]">
+              <h3 className="text-[15px] font-bold text-[#101418]">
+                All My Documents ({myCredentials.length})
+              </h3>
+              <span className="text-[11px] font-semibold text-[#159447] bg-[#E8F8E8] px-2 py-0.5 rounded-full border border-[#CEF0CE]">
+                🔒 Only Your Records
+              </span>
+            </div>
             <div className="divide-y divide-[#E8E9E5]">
-              {activeStudentCreds.map((c) => (
-                <div key={c.id} className="py-2.5 flex items-center justify-between text-[13px]">
+              {myCredentials.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => setSelectedCertId(c.id)}
+                  className={`py-2.5 px-2 rounded-[8px] flex items-center justify-between text-[13px] cursor-pointer transition-all ${
+                    selectedCert?.id === c.id
+                      ? "bg-[#EFFBCB] border border-[#BEF52A]"
+                      : "hover:bg-[#F7F7F4]"
+                  }`}
+                >
                   <div>
-                    <div className="font-semibold text-[#101418]">{c.type}</div>
-                    <div className="text-[11px] text-[#626971]">{c.issuingInstitution}</div>
+                    <div className="font-semibold text-[#101418] flex items-center gap-1.5">
+                      <span>{c.type}</span>
+                      {selectedCert?.id === c.id && (
+                        <span className="text-[10px] font-bold text-[#172000] bg-[#BEF52A] px-1.5 py-0.2 rounded">
+                          Viewing
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-[#626971]">{c.issuingInstitution} • {c.issueDate}</div>
                   </div>
                   <StatusBadge status={c.status} />
                 </div>
               ))}
+              {myCredentials.length === 0 && (
+                <div className="py-4 text-center text-[12px] text-[#8A9097]">
+                  No documents issued to this student yet.
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -375,11 +437,48 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                   issuanceDate: selectedCert.issueDate,
                   status: selectedCert.status as any,
                   documentImage: selectedCert.documentImage,
+                  gpa: selectedCert.gpa,
                 }}
                 verificationUrl={verificationUrl}
                 showInspectButton={false}
               />
             </div>
+
+            {/* Attached Drive Document Box */}
+            {selectedCert.documentImage?.includes("drive.google.com") && (() => {
+              const driveMatch = selectedCert.documentImage.match(/\/d\/([a-zA-Z0-9_-]+)/);
+              const driveId = driveMatch ? driveMatch[1] : null;
+              return (
+                <div className="bg-[#F7F7F4] border border-[#E8E9E5] rounded-[16px] p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">📁</span>
+                      <div>
+                        <div className="font-bold text-[14px] text-[#101418]">Original Student Marksheet (Google Drive)</div>
+                        <div className="text-[12px] text-[#626971]">Verified physical marksheet uploaded by university issuer</div>
+                      </div>
+                    </div>
+                    <a
+                      href={selectedCert.documentImage}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-4 py-2 bg-[#1B4B8A] hover:bg-[#163c6e] text-white rounded-[10px] text-[12px] font-semibold flex items-center gap-1.5 transition-colors shrink-0 shadow-xs"
+                    >
+                      <span>Open on Google Drive ↗</span>
+                    </a>
+                  </div>
+                  {driveId && (
+                    <div className="w-full rounded-[12px] overflow-hidden border border-[#D9DCD5] bg-white aspect-[16/10] max-h-[460px]">
+                      <iframe
+                        src={`https://drive.google.com/file/d/${driveId}/preview`}
+                        className="w-full h-full border-0"
+                        title="Google Drive Marksheet Preview"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div className="flex justify-end pt-2">
               <Button variant="primary" size="md" onClick={() => setShowFullscreenPhoto(false)}>

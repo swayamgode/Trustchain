@@ -40,7 +40,7 @@ export default function Button({
 
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 font-medium rounded-[12px] interactive disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles} ${sizeStyles} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 font-medium rounded-[12px] whitespace-nowrap shrink-0 interactive disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles} ${sizeStyles} ${className}`}
       disabled={disabled}
       {...props}
     >

@@ -6,7 +6,14 @@ import {
   type Issuer,
   type Credential,
   type AuditEvent,
+  type ConsortiumLedgerRecord,
+  type BlockchainBlock,
+  type CollegePeerValidation,
 } from "../lib/data";
+import {
+  INITIAL_LEDGER_RECORDS,
+  INITIAL_BLOCKCHAIN_BLOCKS,
+} from "../lib/consortiumData";
 import { computeSha256, generateEd25519Signature } from "../lib/crypto";
 import {
   checkSupabaseConnection,
@@ -35,10 +42,12 @@ export interface UserSession {
 export interface BulkRecordInput {
   subjectName: string;
   subjectId: string;
+  recipientEmail?: string;
   title: string;
   department: string;
   gpa: string;
   honours: string;
+  documentImage?: string;
 }
 
 interface TrustChainContextType {
@@ -46,7 +55,7 @@ interface TrustChainContextType {
   setActiveRole: (role: UserRole) => void;
   currentUser: UserSession | null;
   isLoggedIn: boolean;
-  loginAs: (role: UserRole) => void;
+  loginAs: (role: UserRole, customUser?: Partial<UserSession>) => void;
   logout: () => void;
   institutions: Institution[];
   issuers: Issuer[];
@@ -65,6 +74,7 @@ interface TrustChainContextType {
     type: string;
     subjectName: string;
     subjectId: string;
+    recipientEmail?: string;
     title: string;
     department?: string;
     honours?: string;
@@ -96,6 +106,20 @@ interface TrustChainContextType {
     checks: { name: string; status: "pass" | "fail"; detail: string }[];
   }>;
   updateCredentialImageHash: (credentialId: string, imageHash: string) => Promise<boolean>;
+  ledgerRecords: ConsortiumLedgerRecord[];
+  blockchainBlocks: BlockchainBlock[];
+  updateFirstCollegeStatus: (
+    recordId: string,
+    status: "not_verified" | "verified_and_issued" | "fault",
+    issueReason?: string
+  ) => void;
+  peerCrossVerify: (
+    recordId: string,
+    collegeId: string,
+    collegeName: string,
+    status: "verified" | "fault",
+    reason?: string
+  ) => void;
 }
 
 const INITIAL_INSTITUTIONS: Institution[] = [
@@ -189,6 +213,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-lead-7721",
     subjectName: "Bhavik Jain",
+    recipientEmail: "bhavik.jain@alumni.edu",
     issueDate: "2024-02-18",
     status: "active",
     fingerprint: "0x5442660954426609ca751fb8682c956b8ee40b1a2c9f80cd4357067ce10ebc2f07c635dea5f9ab81dbb121307a68a6e398205c923edbd2455c934bf4f34ac1a711024756b735fd19d5ed72c84ba4e87bea5c6e2a0817e7ddaece9d8ccc86133f62b988ee",
@@ -205,6 +230,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-mu-8841",
     subjectName: "Alex Chen",
+    recipientEmail: "alex.chen@metropolitan.edu",
     issueDate: "2024-06-15",
     status: "active",
     fingerprint: "0xf4bba5a0f4bba5a06a8cdc11c8d556c22e1dc8b38c664364e3aec5d541f77f86a73ff677050068287b48e299da91654a38d99f3b9e2211ecfc6a885d53b3020eb1fb84ff17cc3eb07514b161eb5d2bd24aa5ad83a8ee24740e375e256c7fd096c2404b47",
@@ -221,6 +247,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-mu-9014",
     subjectName: "Dr. Sarah Lin",
+    recipientEmail: "sarah.lin@med.metropolitan.edu",
     issueDate: "2024-05-20",
     status: "active",
     fingerprint: "0x4611aff64611aff6d826d6477a7f5c949cb7c2e53ecc49325104cf83f35d75d01595fc21b7aa627ec9e2e8cf683b6f1c8a73956d2c881bba4ec0820be119085803518ea9a56634e6c7bebb3759f72184f80fa7d51a442e22bc9d5473ded5dac070ea4111",
@@ -237,6 +264,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-mu-4421",
     subjectName: "David K. Vance",
+    recipientEmail: "david.vance@student.mu.edu",
     issueDate: "2024-01-20",
     status: "revoked",
     revocationDate: "2024-10-12",
@@ -248,6 +276,186 @@ const INITIAL_CREDENTIALS: Credential[] = [
     trustRegistryRef: "block-#1,401,950",
     did: "did:trust:cred-2024-MU-11203",
     documentImage: "/sample_degree.jpg",
+  },
+  {
+    id: "cred-2026-MU-101",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026101",
+    subjectName: "Rahul Sharma",
+    recipientEmail: "rahul.sharma@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "75.0% (450/600)",
+    honours: "Distinction Honours",
+    fingerprint: "0x7a8b9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b",
+    txRef: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef0123456789a",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,101",
+    did: "did:trust:cred-2026-MU-101",
+    documentImage: "https://drive.google.com/file/d/1wzV3qO7BaYAYknOTPdHXADZPc6xV5j5y/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-102",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026102",
+    subjectName: "Priya Patil",
+    recipientEmail: "priya.patil@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "81.0% (486/600)",
+    honours: "Distinction Honours",
+    fingerprint: "0x8b9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c",
+    txRef: "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef0123456789b",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,102",
+    did: "did:trust:cred-2026-MU-102",
+    documentImage: "https://drive.google.com/file/d/1TCPRzpWT7cKmJuJKUgagB6rDGA8tOJje/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-103",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026103",
+    subjectName: "Aman Shah",
+    recipientEmail: "aman.shah@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "69.0% (414/600)",
+    honours: "First Class Honours",
+    fingerprint: "0x9c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d",
+    txRef: "0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef0123456789c",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,103",
+    did: "did:trust:cred-2026-MU-103",
+    documentImage: "https://drive.google.com/file/d/1JV00nebHEaXzTUlKjSDpShIUKaCTWW27/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-104",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026104",
+    subjectName: "Sneha Joshi",
+    recipientEmail: "sneha.joshi@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "88.0% (528/600)",
+    honours: "Distinction Honours",
+    fingerprint: "0xa1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
+    txRef: "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef0123456789d",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,104",
+    did: "did:trust:cred-2026-MU-104",
+    documentImage: "https://drive.google.com/file/d/1Zp8GjiXhfwfMGAYnd2FM7P5xPT9K5-Nx/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-105",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026105",
+    subjectName: "Karan Mehta",
+    recipientEmail: "karan.mehta@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "66.0% (396/600)",
+    honours: "First Class Honours",
+    fingerprint: "0xb2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3",
+    txRef: "0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef0123456789e",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,105",
+    did: "did:trust:cred-2026-MU-105",
+    documentImage: "https://drive.google.com/file/d/1R7VQWEzcrZFdBJLV6KF7HspzFzoLMGSW/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-106",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026106",
+    subjectName: "Neha Desai",
+    recipientEmail: "neha.desai@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "77.0% (462/600)",
+    honours: "Distinction Honours",
+    fingerprint: "0xc3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4",
+    txRef: "0x6f7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef0123456789f",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,106",
+    did: "did:trust:cred-2026-MU-106",
+    documentImage: "https://drive.google.com/file/d/1PmEVU5tNTNHjgdMpSOGMeG7JSiBk_6SR/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-107",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026107",
+    subjectName: "Arjun Kulkarni",
+    recipientEmail: "arjun.kulkarni@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "84.0% (504/600)",
+    honours: "Distinction Honours",
+    fingerprint: "0xd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5",
+    txRef: "0x7a8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef01234567890",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,107",
+    did: "did:trust:cred-2026-MU-107",
+    documentImage: "https://drive.google.com/file/d/1wMu2YoZvaH8cvfIuTHgjJzR09_cI3nqG/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-108",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026108",
+    subjectName: "Isha Nair",
+    recipientEmail: "isha.nair@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "72.0% (432/600)",
+    honours: "First Class Honours",
+    fingerprint: "0xe5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+    txRef: "0x8b9c0d1e2f3a4b5c6d7e8f90123456789abcdef01234567891",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,108",
+    did: "did:trust:cred-2026-MU-108",
+    documentImage: "https://drive.google.com/file/d/1RrrFPV7O7QE-oMsEQP-sVKM9ryb6m1o7/view?usp=drive_link",
+  },
+  {
+    id: "cred-2026-MU-110",
+    type: "AI&DS — Semester 5 Marksheet & Certificate",
+    issuingInstitution: "Metropolitan University",
+    issuerId: "inst-001",
+    subjectId: "did:trust:student-mu2026110",
+    subjectName: "Meera Singh",
+    recipientEmail: "meera.singh@mu.edu",
+    department: "School of AI&DS & Applied Sciences",
+    issueDate: "2026-02-15",
+    status: "active",
+    gpa: "90.0% (540/600)",
+    honours: "Distinction Honours",
+    fingerprint: "0xf6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7",
+    txRef: "0x9c0d1e2f3a4b5c6d7e8f90123456789abcdef01234567892",
+    proofMethod: "Ed25519Signature2020",
+    trustRegistryRef: "block-#1,403,110",
+    did: "did:trust:cred-2026-MU-110",
+    documentImage: "https://drive.google.com/file/d/1BENcN41VoaFBGBcjiNmaOrRjpUo2FJmw/view?usp=drive_link",
   },
 ];
 
@@ -320,6 +528,8 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     if (typeof window !== "undefined") {
       try {
+        const savedCustom = localStorage.getItem("tc_auth_user");
+        if (savedCustom) return JSON.parse(savedCustom);
         const saved = localStorage.getItem("tc_auth_role") as UserRole | null;
         if (saved && DEFAULT_USERS[saved]) return DEFAULT_USERS[saved];
       } catch (e) {}
@@ -371,19 +581,62 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     }
     return INITIAL_AUDITS;
   });
+  const [ledgerRecords, setLedgerRecords] = useState<ConsortiumLedgerRecord[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_consortium_ledgers");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_LEDGER_RECORDS;
+  });
+  const [blockchainBlocks, setBlockchainBlocks] = useState<BlockchainBlock[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_blockchain_blocks");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_BLOCKCHAIN_BLOCKS;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tc_consortium_ledgers", JSON.stringify(ledgerRecords));
+      } catch (e) {}
+    }
+  }, [ledgerRecords]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tc_blockchain_blocks", JSON.stringify(blockchainBlocks));
+      } catch (e) {}
+    }
+  }, [blockchainBlocks]);
+
   const [activeInstitution, setActiveInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
   const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-lead-7721");
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<SupabaseSyncStatus>("connecting");
   const [supabaseStatusMessage, setSupabaseStatusMessage] = useState<string>("Connecting to Supabase...");
 
-  const loginAs = (role: UserRole) => {
-    const user = DEFAULT_USERS[role];
+  const loginAs = (role: UserRole, customUser?: Partial<UserSession>) => {
+    const baseUser = DEFAULT_USERS[role];
+    const user: UserSession = customUser ? { ...baseUser, ...customUser } : baseUser;
     setCurrentUser(user);
     setActiveRole(role);
     setIsLoggedIn(true);
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("tc_auth_role", role);
+        localStorage.setItem("tc_auth_user", JSON.stringify(user));
       } catch (e) {}
     }
   };
@@ -394,6 +647,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem("tc_auth_role");
+        localStorage.removeItem("tc_auth_user");
       } catch (e) {}
     }
   };
@@ -555,6 +809,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     type: string;
     subjectName: string;
     subjectId: string;
+    recipientEmail?: string;
     title: string;
     department?: string;
     honours?: string;
@@ -587,6 +842,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       issuerId: activeInstitution.id,
       subjectId: data.subjectId,
       subjectName: data.subjectName,
+      recipientEmail: data.recipientEmail,
       issueDate,
       status: "active",
       fingerprint,
@@ -595,6 +851,9 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       trustRegistryRef: `block-#${Math.floor(1402800 + Math.random() * 500)}`,
       did: `did:trust:${credId}`,
       documentImage: data.documentImage || "/sample_degree.jpg",
+      department: data.department,
+      gpa: data.gpa,
+      honours: data.honours,
     };
 
     setCredentials((prev) => [newCred, ...prev]);
@@ -615,6 +874,75 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     // Async sync to Supabase
     saveCredentialToDb(newCred);
     saveAuditEventToDb(audit);
+
+    // Also register newly issued credential in Consortium Ledger & mine a Block
+    const newBlockHeight = (blockchainBlocks[0]?.height || 1402886) + 1;
+    const newBlockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+    const nowUtc = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+
+    const newLedgerRec: ConsortiumLedgerRecord = {
+      id: `rec-${Date.now().toString().slice(-4)}`,
+      credentialId: newCred.id,
+      studentName: newCred.subjectName,
+      studentId: newCred.subjectId,
+      degreeTitle: newCred.type,
+      department: newCred.department || "Academic Division",
+      gpa: newCred.gpa || "3.80",
+      firstCollegeId: activeInstitution.id,
+      firstCollegeName: activeInstitution.name,
+      firstCollegeStatus: "verified_and_issued",
+      firstCollegeReason: undefined,
+      firstCollegeTimestamp: nowUtc,
+      peerValidations: institutions
+        .filter((i) => i.name !== activeInstitution.name)
+        .slice(0, 2)
+        .map((inst) => ({
+          collegeId: inst.id,
+          collegeName: inst.name,
+          status: "pending",
+        })),
+      isUpdated: true,
+      isTampered: false,
+      blockNumber: newBlockHeight,
+      blockHash: newBlockHash,
+      prevBlockHash: blockchainBlocks[0]?.hash || "0x0000000000000000000000000000000000000000000000000000000000000000",
+      merkleRoot: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
+      txHash: newCred.txRef,
+      payloadHash: newCred.fingerprint,
+      documentImage: newCred.documentImage,
+      updatedAt: nowUtc,
+    };
+    setLedgerRecords((prev) => [newLedgerRec, ...prev]);
+
+    const newBlock: BlockchainBlock = {
+      height: newBlockHeight,
+      hash: newBlockHash,
+      prevHash: blockchainBlocks[0]?.hash || "0x0000000000000000000000000000000000000000000000000000000000000000",
+      merkleRoot: newLedgerRec.merkleRoot,
+      timestamp: nowUtc,
+      validatorNode: `${activeInstitution.name} Validator Node`,
+      validatorDid: activeInstitution.did,
+      signature: `ed25519:${activeInstitution.name.slice(0, 3).toLowerCase()}_${Date.now()}`,
+      nonce: Math.floor(1000 + Math.random() * 9000),
+      status: "verified",
+      recordId: newLedgerRec.id,
+      studentName: newLedgerRec.studentName,
+      credentialId: newLedgerRec.credentialId,
+      firstCollege: newLedgerRec.firstCollegeName,
+      firstCollegeStatus: "verified_and_issued",
+      issueReason: undefined,
+      peerEndorsements: newLedgerRec.peerValidations.map((p) => ({
+        collegeName: p.collegeName,
+        status: p.status,
+      })),
+      payloadHash: newLedgerRec.payloadHash,
+      rawPayload: {
+        studentName: newLedgerRec.studentName,
+        degree: newLedgerRec.degreeTitle,
+        action: "verified_and_issued",
+      },
+    };
+    setBlockchainBlocks((prev) => [newBlock, ...prev]);
 
     return newCred;
   };
@@ -640,14 +968,18 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         issuerId: activeInstitution.id,
         subjectId: r.subjectId,
         subjectName: r.subjectName,
+        recipientEmail: r.recipientEmail,
         issueDate,
-        status: "active",
+        status: "active" as const,
         fingerprint,
         txRef: `0x${Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
         proofMethod: "Ed25519Signature2020",
         trustRegistryRef: `block-#${blockNum}`,
         did: `did:trust:${credId}`,
-        documentImage: "/sample_degree.jpg",
+        documentImage: r.documentImage || "/sample_degree.jpg",
+        department: r.department,
+        gpa: r.gpa,
+        honours: r.honours,
       };
     });
 
@@ -729,6 +1061,208 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     saveAuditEventToDb(audit);
 
     return true;
+  };
+
+  // 4b. Consortium Cross-Validation Ledger Actions
+  // When a school sets "verified_and_issued", it broadcasts to ALL ledger records
+  // sharing the same credentialId (every institution's ledger copy gets updated).
+  const updateFirstCollegeStatus = (
+    recordId: string,
+    status: "not_verified" | "verified_and_issued" | "fault",
+    issueReason?: string
+  ) => {
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+    const txRef = `0x${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+    const blockStatus: BlockchainBlock["status"] =
+      status === "fault" ? "fault" : status === "verified_and_issued" ? "verified" : "pending";
+
+    // Step 1: find the source record to get credentialId for broadcast
+    let broadcastCredentialId: string | null = null;
+    let sourceRec: ConsortiumLedgerRecord | undefined;
+
+    setLedgerRecords((prev) => {
+      sourceRec = prev.find((r) => r.id === recordId);
+      broadcastCredentialId = sourceRec?.credentialId ?? null;
+
+      return prev.map((rec) => {
+        // Update the target record; if verified_and_issued, also broadcast to same credential copies
+        const isTarget = rec.id === recordId;
+        const isSameCredential =
+          status === "verified_and_issued" &&
+          broadcastCredentialId &&
+          rec.credentialId === broadcastCredentialId &&
+          rec.id !== recordId;
+
+        if (!isTarget && !isSameCredential) return rec;
+
+        const isUpdated = status !== "not_verified";
+        const isTampered = status === "fault";
+
+        // Anchor block in blockchain
+        setBlockchainBlocks((prevBlocks) => {
+          const existingIdx = prevBlocks.findIndex((b) => b.recordId === rec.id);
+          const latestBlock = prevBlocks[0];
+          const newHeight =
+            existingIdx >= 0
+              ? prevBlocks[existingIdx].height
+              : latestBlock
+              ? latestBlock.height + 1
+              : 1402890;
+          const newHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+
+          const updatedBlock: BlockchainBlock = {
+            height: newHeight,
+            hash: newHash,
+            prevHash:
+              latestBlock?.hash ||
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+            merkleRoot: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
+            timestamp: now,
+            validatorNode: `${activeInstitution.name} Validator Node`,
+            validatorDid: activeInstitution.did,
+            signature: `ed25519:${activeInstitution.name.slice(0, 4).toLowerCase()}_${Date.now()}`,
+            nonce: Math.floor(1000 + Math.random() * 9000),
+            status: blockStatus,
+            recordId: rec.id,
+            studentName: rec.studentName,
+            credentialId: rec.credentialId,
+            firstCollege: rec.firstCollegeName,
+            firstCollegeStatus: status,
+            issueReason: status === "fault" ? issueReason : undefined,
+            peerEndorsements: rec.peerValidations.map((p) => ({
+              collegeName: p.collegeName,
+              status: p.status,
+              reason: p.reason,
+            })),
+            payloadHash: rec.payloadHash,
+            rawPayload: {
+              studentName: rec.studentName,
+              studentId: rec.studentId,
+              degreeTitle: rec.degreeTitle,
+              gpa: rec.gpa,
+              firstCollegeDecision: status,
+              broadcastFrom: isTarget ? rec.firstCollegeName : sourceRec?.firstCollegeName,
+              broadcastedAt: now,
+              issueReason: issueReason || "N/A",
+              timestamp: now,
+            },
+          };
+
+          if (existingIdx >= 0) {
+            const copy = [...prevBlocks];
+            copy[existingIdx] = updatedBlock;
+            return copy;
+          }
+          return [updatedBlock, ...prevBlocks];
+        });
+
+        // Log audit event for every record updated (target + broadcast copies)
+        const audit: AuditEvent = {
+          id: `audit-${Date.now()}-${rec.id}`,
+          type: "cross_college_validation",
+          actor: activeInstitution.did,
+          timestamp: now,
+          related: isSameCredential
+            ? `[BROADCAST] ${rec.firstCollegeName} ledger auto-updated: ${rec.studentName} (${rec.credentialId}) → ${status.toUpperCase()} (propagated from ${sourceRec?.firstCollegeName})`
+            : `${rec.studentName} (${rec.credentialId}) status set to ${status.toUpperCase()} by ${rec.firstCollegeName}${issueReason ? ` — Reason: ${issueReason}` : ""}`,
+          txRef,
+          outcome: status === "fault" ? "rejected" : status === "verified_and_issued" ? "success" : "alert",
+          details: isSameCredential
+            ? `Consortium ledger broadcast: verification anchored across all ${broadcastCredentialId} block copies.`
+            : `Consortium blockchain block anchored with First College disposition: ${status}.`,
+        };
+        setAuditEvents((prevAudits) => [audit, ...prevAudits]);
+
+        return {
+          ...rec,
+          firstCollegeStatus: status,
+          firstCollegeReason: status === "fault" ? issueReason : undefined,
+          firstCollegeTimestamp: status !== "not_verified" ? now : undefined,
+          isUpdated,
+          isTampered,
+          tamperDetails:
+            status === "fault"
+              ? `Fault flagged by ${rec.firstCollegeName}: ${issueReason}`
+              : undefined,
+          txHash: txRef,
+          updatedAt: now,
+        };
+      });
+    });
+  };
+
+  const peerCrossVerify = (
+    recordId: string,
+    collegeId: string,
+    collegeName: string,
+    status: "verified" | "fault",
+    reason?: string
+  ) => {
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+    const txRef = `0x${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+
+    setLedgerRecords((prev) =>
+      prev.map((rec) => {
+        if (rec.id !== recordId) return rec;
+
+        const updatedPeers = [...rec.peerValidations];
+        const existingIdx = updatedPeers.findIndex((p) => p.collegeId === collegeId || p.collegeName === collegeName);
+        const peerItem: CollegePeerValidation = {
+          collegeId,
+          collegeName,
+          status,
+          timestamp: now,
+          signature: `ed25519:${collegeName.slice(0, 3).toLowerCase()}_${Date.now()}`,
+          reason: status === "fault" ? reason : undefined,
+        };
+
+        if (existingIdx >= 0) {
+          updatedPeers[existingIdx] = peerItem;
+        } else {
+          updatedPeers.push(peerItem);
+        }
+
+        const anyFault = rec.firstCollegeStatus === "fault" || updatedPeers.some((p) => p.status === "fault");
+
+        // Update block peer endorsements
+        setBlockchainBlocks((prevBlocks) =>
+          prevBlocks.map((b) => {
+            if (b.recordId !== recordId) return b;
+            return {
+              ...b,
+              status: anyFault ? "fault" : b.status,
+              peerEndorsements: updatedPeers.map((p) => ({
+                collegeName: p.collegeName,
+                status: p.status,
+                reason: p.reason,
+              })),
+            };
+          })
+        );
+
+        // Audit event
+        const audit: AuditEvent = {
+          id: `audit-${Date.now()}`,
+          type: "cross_college_validation",
+          actor: `did:trust:${collegeId}`,
+          timestamp: now,
+          related: `Peer College ${collegeName} cross-validated ${rec.studentName} (${rec.credentialId}): ${status.toUpperCase()}${reason ? ` — Reason: ${reason}` : ""}`,
+          txRef,
+          outcome: status === "verified" ? "success" : "alert",
+          details: `Peer consensus block endorsement confirmed by ${collegeName}.`,
+        };
+        setAuditEvents((prevAudits) => [audit, ...prevAudits]);
+
+        return {
+          ...rec,
+          peerValidations: updatedPeers,
+          isUpdated: true,
+          isTampered: anyFault,
+          tamperDetails: anyFault ? (reason || rec.tamperDetails || "Peer college reported discrepancy during cross-verification") : undefined,
+          updatedAt: now,
+        };
+      })
+    );
   };
 
   // Helper to evaluate verification checks on a credential
@@ -981,6 +1515,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         verifyCredential,
         verifyCredentialAsync,
         updateCredentialImageHash,
+        ledgerRecords,
+        blockchainBlocks,
+        updateFirstCollegeStatus,
+        peerCrossVerify,
       }}
     >
       {children}

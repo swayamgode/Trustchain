@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import QRCodeCanvas from "./QRCodeCanvas";
 import StatusBadge from "./StatusBadge";
 
@@ -24,69 +24,161 @@ interface CertificateCardProps {
   showInspectButton?: boolean;
 }
 
+function getCertificateImageSrc(url?: string): string {
+  if (!url) return "/lead_certificate_bg.jpg";
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) {
+    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
+  }
+  return url;
+}
+
 export default function CertificateCard({
   cert,
   verificationUrl,
   onInspectFull,
   showInspectButton = true,
 }: CertificateCardProps) {
-  // If credential has an authentic scanned physical document photocopy attached, display that original certificate
-  const hasOriginalPhoto =
-    cert.documentImage &&
+  const [imgLoadError, setImgLoadError] = useState(false);
+  const [hasEmbeddedQr, setHasEmbeddedQr] = useState(false);
+  const [showQrOverlay, setShowQrOverlay] = useState(true);
+  const isDriveLink = Boolean(cert.documentImage?.includes("drive.google.com"));
+
+  // Only treat as raw standalone physical photo if it's a direct image file, NOT a Drive link, and loads successfully
+  const isDirectPhoto =
+    !isDriveLink &&
+    !imgLoadError &&
+    Boolean(cert.documentImage) &&
     cert.documentImage !== "/lead_certificate_bg.jpg" &&
-    cert.documentImage.length > 0;
+    ((cert.documentImage?.startsWith("data:image/") ||
+      cert.documentImage?.startsWith("/") ||
+      cert.documentImage?.match(/\.(jpg|jpeg|png|webp|svg)$/i)) ?? false);
+
+  const cleanSubjectId = cert.subjectId
+    ? cert.subjectId.replace("did:trust:", "").replace("student-", "").toUpperCase()
+    : "";
+
+  const checkImageForEmbeddedQr = (img: HTMLImageElement) => {
+    try {
+      if (!img || img.naturalWidth === 0) return;
+      const canvas = document.createElement("canvas");
+      const w = Math.min(img.naturalWidth, 800);
+      const h = Math.min(img.naturalHeight, 600);
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, w, h);
+      import("jsqr")
+        .then(({ default: jsQR }) => {
+          const imgData = ctx.getImageData(0, 0, w, h);
+          const found = jsQR(imgData.data, imgData.width, imgData.height);
+          if (found && found.data) {
+            setHasEmbeddedQr(true);
+            // Hide the duplicate overlay so there is only 1 QR code!
+            setShowQrOverlay(false);
+          } else {
+            setHasEmbeddedQr(false);
+            setShowQrOverlay(true);
+          }
+        })
+        .catch(() => {
+          setShowQrOverlay(true);
+        });
+    } catch {
+      setShowQrOverlay(true);
+    }
+  };
 
   return (
     <div className="bg-white border-2 border-[#111410] rounded-[24px] p-4 shadow-lg overflow-hidden group transition-all">
       {/* Certificate Frame */}
       <div className="relative rounded-[16px] overflow-hidden border border-[#D9DCD5] aspect-[4/3] w-full select-none shadow-inner bg-[#FAF8F5]">
-        {hasOriginalPhoto ? (
-          /* 1. ACTUAL ORIGINAL ISSUED CERTIFICATE PHOTOCOPY */
+        {isDirectPhoto ? (
+          /* 1. ACTUAL DIRECT UPLOADED DOCUMENT PHOTOCOPY */
           <div className="relative w-full h-full flex items-center justify-center">
             <img
-              src={cert.documentImage}
+              src={getCertificateImageSrc(cert.documentImage)}
               alt={cert.type || "Official Issued Certificate"}
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
+              onLoad={(e) => {
+                checkImageForEmbeddedQr(e.currentTarget);
+              }}
+              onError={() => {
+                setImgLoadError(true);
+              }}
             />
 
-            {/* Top-Right Pill Inspect Button */}
-            {showInspectButton && (
+            {/* Top-Right Control Buttons */}
+            <div
+              data-html2canvas-ignore="true"
+              className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2"
+            >
+              {/* Toggle QR Overlay if certificate already has QR code or user wants to hide/show */}
               <button
-                data-html2canvas-ignore="true"
-                onClick={onInspectFull}
-                className="absolute top-3.5 right-3.5 z-20 bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                type="button"
+                onClick={() => setShowQrOverlay((prev) => !prev)}
+                className="bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                title={showQrOverlay ? "Hide digital TrustChain QR overlay" : "Show digital TrustChain QR overlay"}
               >
-                <span>🔍 Inspect Full Document</span>
+                <span>{showQrOverlay ? "🔲 Hide QR Overlay" : "🔲 Show TrustChain QR"}</span>
               </button>
-            )}
 
-            {/* Anchored Verification QR Code on the bottom-right corner */}
-            <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-xs p-2 rounded-[12px] border border-black/10 shadow-lg flex flex-col items-center select-none">
-              <QRCodeCanvas
-                value={verificationUrl}
-                size={74}
-                noFrame={true}
-              />
-              <div className="mt-1 text-center font-sans">
-                <div className="text-[7px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-none">
-                  SCAN TO VERIFY
-                </div>
-                <div className="text-[6.5px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-none mt-0.5">
-                  AUTHENTICATION
+              {showInspectButton && (
+                <button
+                  type="button"
+                  onClick={onInspectFull}
+                  className="bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <span>🔍 Inspect Full Document</span>
+                </button>
+              )}
+            </div>
+
+            {/* Anchored Verification QR Code on the bottom-right corner - only if showQrOverlay is true */}
+            {showQrOverlay && (
+              <div
+                data-trustchain-qr="true"
+                className="absolute bottom-3 right-3 bg-white p-2.5 rounded-[14px] border border-black/20 shadow-xl flex flex-col items-center select-none z-10 animate-fade-in"
+              >
+                <QRCodeCanvas
+                  value={verificationUrl}
+                  size={76}
+                  noFrame={true}
+                />
+                <div className="mt-1 text-center font-sans">
+                  <div className="text-[7px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-none">
+                    SCAN TO VERIFY
+                  </div>
+                  <div className="text-[6.5px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-none mt-0.5">
+                    AUTHENTICATION
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
-
         ) : (
-          /* 2. DYNAMIC LEAD ACADEMY / GOLD HONORS CERTIFICATE TEMPLATE */
+          /* 2. DYNAMIC LEAD ACADEMY / GOLD HONORS CERTIFICATE TEMPLATE WITH STUDENT DETAILS */
           <div className="relative w-full h-full">
             {/* Background Parchment & Ornate Border */}
             <div
               className="absolute inset-0 bg-cover bg-no-repeat bg-center"
               style={{ backgroundImage: "url('/lead_certificate_bg.jpg')" }}
             />
+
+            {/* Top-Left Open on Drive Button if drive link */}
+            {isDriveLink && (
+              <a
+                data-html2canvas-ignore="true"
+                href={cert.documentImage}
+                target="_blank"
+                rel="noreferrer"
+                className="absolute top-3.5 left-3.5 z-20 bg-white/95 hover:bg-white text-[#101418] text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all border border-black/10 hover:border-black/30"
+              >
+                <span>📁 Original Marksheet on Drive ↗</span>
+              </a>
+            )}
 
             {/* Top-Right Pill Inspect Button */}
             {showInspectButton && (
@@ -100,64 +192,76 @@ export default function CertificateCard({
             )}
 
             {/* Certificate Content Overlay */}
-            <div className="relative z-10 h-full w-full flex flex-col justify-between pl-[28%] pr-[6%] py-[5%]">
+            <div className="relative z-10 h-full w-full flex flex-col justify-between pl-[28%] pr-[6%] py-[4%]">
               {/* Top Header: Logo / Institution Name with clearance from Inspect Button */}
               <div className="flex items-center justify-between pr-24">
                 <div className="text-left">
                   <div className="font-extrabold text-[15px] tracking-tight leading-none text-[#1B365D]">
-                    {cert.issuingInstitution ? cert.issuingInstitution.toUpperCase() : "LEAD ACADEMY"}
+                    {cert.issuingInstitution ? cert.issuingInstitution.toUpperCase() : "INSTITUTE OF ACADEMIC EXCELLENCE"}
                   </div>
                   <div className="text-[7.5px] text-[#006699] font-medium tracking-wide mt-0.5">
-                    www.{cert.issuingInstitution?.toLowerCase().replace(/[^a-z0-9]/g, "") || "lead"}.academy
+                    www.{cert.issuingInstitution?.toLowerCase().replace(/[^a-z0-9]/g, "") || "trustchain"}.edu
                   </div>
                 </div>
               </div>
 
               {/* Main Titles */}
-              <div className="text-center space-y-0.5 mt-1">
-                <h3 className="text-[10px] md:text-[11px] font-bold tracking-[0.22em] text-[#006699] uppercase font-sans">
-                  Course Completion
+              <div className="text-center space-y-0.5 mt-0.5">
+                <h3 className="text-[9.5px] md:text-[10.5px] font-bold tracking-[0.22em] text-[#006699] uppercase font-sans">
+                  Course Completion & Academic Standing
                 </h3>
-                <h1 className="text-[24px] md:text-[30px] font-bold tracking-tight text-[#162740] font-cinzel leading-none">
+                <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight text-[#162740] font-cinzel leading-none">
                   CERTIFICATE
                 </h1>
-                <div className="flex items-center justify-center gap-2 pt-1">
+                <div className="flex items-center justify-center gap-2 pt-0.5">
                   <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-[#B38728]" />
-                  <p className="text-[9.5px] text-[#475569] font-medium tracking-wide">
-                    This Certificate is awarded to
+                  <p className="text-[9px] text-[#475569] font-medium tracking-wide">
+                    This Certificate is proudly conferred upon
                   </p>
                   <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-[#B38728]" />
                 </div>
               </div>
 
-              {/* Recipient Name in Cursive Calligraphy with fallbacks */}
+              {/* Recipient Name in Cursive Calligraphy */}
               <div className="text-center my-0.5">
                 <div
-                  className="text-[32px] md:text-[38px] text-[#1A4B8C] leading-tight select-all"
+                  className="text-[28px] md:text-[34px] font-bold text-[#1A4B8C] leading-tight select-all drop-shadow-xs"
                   style={{ fontFamily: "var(--font-script), 'Brush Script MT', 'Dancing Script', cursive, serif" }}
                 >
-                  {cert.subjectName || "Bhavik Jain"}
+                  {cert.subjectName || "Rahul Sharma"}
                 </div>
-                <div className="w-48 mx-auto h-[1px] bg-gradient-to-r from-transparent via-[#C5A059] to-transparent" />
+                <div className="w-52 mx-auto h-[1.5px] bg-gradient-to-r from-transparent via-[#C5A059] to-transparent mt-0.5" />
+                {cleanSubjectId && (
+                  <div className="text-[8.5px] font-mono font-bold text-[#64748B] mt-0.5 tracking-wider">
+                    STUDENT ID: {cleanSubjectId}
+                  </div>
+                )}
               </div>
 
-              {/* Certificate Description Body */}
-              <div className="text-center px-4 space-y-0.5">
-                <p className="text-[9px] text-[#475569] font-medium">
-                  For successful completion of
+              {/* Certificate Description Body & Grade */}
+              <div className="text-center px-2 space-y-0.5">
+                <p className="text-[8.5px] text-[#475569] font-medium">
+                  for outstanding academic fulfillment and completion of
                 </p>
-                <p className="text-[11px] md:text-[12px] font-bold text-[#0F172A] leading-tight">
-                  {cert.type || "Advanced UI/UX Design with LIVE Project"}
+                <p className="text-[11.5px] md:text-[13px] font-bold text-[#0F172A] leading-tight">
+                  {cert.type || "AI&DS — Semester 5"}
                 </p>
-                <p className="text-[8.5px] text-[#64748B] italic">
+                {cert.gpa && (
+                  <div className="pt-0.5">
+                    <span className="text-[8.5px] font-bold text-[#159447] bg-[#E8F8E8] px-2 py-0.5 rounded-full border border-[#CEF0CE]">
+                      Marks / Score: {cert.gpa}
+                    </span>
+                  </div>
+                )}
+                <p className="text-[8px] text-[#64748B] italic">
                   an authentic credential registered on TrustChain decentralized ledger.
                 </p>
               </div>
 
               {/* Signature Block */}
-              <div className="text-center pt-1 pb-0.5">
+              <div className="text-center pt-0.5 pb-0.5">
                 <div
-                  className="text-[24px] text-[#0F172A] -mb-1 transform -rotate-1"
+                  className="text-[22px] text-[#0F172A] -mb-1 transform -rotate-1"
                   style={{ fontFamily: "var(--font-script), 'Brush Script MT', cursive, serif" }}
                 >
                   Ashfaq Zaman
@@ -167,7 +271,7 @@ export default function CertificateCard({
                   Ashfaq Zaman
                 </div>
                 <div className="text-[7.5px] text-[#64748B] mt-0.5">
-                  Chairman, {cert.issuingInstitution || "Lead Academy"}
+                  Chairman, {cert.issuingInstitution || "Institute of Academic Excellence"}
                 </div>
               </div>
 
@@ -188,22 +292,22 @@ export default function CertificateCard({
 
                 {/* Issued Date (Center) */}
                 <div className="text-[8px] text-[#64748B] font-medium pb-1">
-                  Issued On: {cert.issuanceDate || "February, 2023"}
+                  Issued On: {cert.issuanceDate || new Date().toISOString().slice(0, 10)}
                 </div>
 
-                {/* Pure Borderless QR Code (Right) — Matching Reference Certificate */}
+                {/* Pure Borderless QR Code (Right) */}
                 <div className="flex flex-col items-center text-center select-none">
                   <QRCodeCanvas
                     value={verificationUrl}
-                    size={74}
+                    size={72}
                     noFrame={true}
                     transparent={true}
                   />
-                  <div className="mt-1 text-center">
-                    <div className="text-[7px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-tight font-sans">
+                  <div className="mt-0.5 text-center">
+                    <div className="text-[6.5px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-tight font-sans">
                       SCAN TO VERIFY
                     </div>
-                    <div className="text-[6.5px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-tight font-sans">
+                    <div className="text-[6px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-tight font-sans">
                       AUTHENTICATION
                     </div>
                   </div>
@@ -214,12 +318,12 @@ export default function CertificateCard({
         )}
       </div>
 
-      {/* Bottom Information Card Bar (Matching User Screenshot) */}
+      {/* Bottom Information Card Bar */}
       <div className="pt-3 px-2 flex items-center justify-between text-[13px]">
         <div className="flex items-center gap-2">
           <span className="font-extrabold text-[#101418]">Document Title:</span>
           <span className="text-[#626971] font-medium">
-            {cert.type.toLowerCase().includes("completion") ? "completion" : cert.type}
+            {cert.type}
           </span>
         </div>
         <StatusBadge status={cert.status} />

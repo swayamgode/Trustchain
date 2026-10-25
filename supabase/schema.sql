@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.credentials (
     revocation_date TEXT,
     revocation_reason TEXT,
     did TEXT NOT NULL,
+    recipient_email TEXT,
     document_image TEXT,
     document_image_hash TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())

@@ -9,13 +9,23 @@ import Button from "../ui/Button";
 import StatusBadge from "../ui/StatusBadge";
 
 export default function RegistryScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
-  const { credentials } = useTrustChain();
+  const { credentials, activeRole, currentUser } = useTrustChain();
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Credential | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const allCreds = credentials;
+  const currentEmail = currentUser?.email?.toLowerCase().trim();
+  const currentName = currentUser?.name?.toLowerCase().trim();
+
+  const allCreds = activeRole === "student"
+    ? credentials.filter((c) => {
+        const credEmail = c.recipientEmail?.toLowerCase().trim();
+        if (currentEmail && credEmail && currentEmail === credEmail) return true;
+        if (currentName && c.subjectName.toLowerCase().trim() === currentName) return true;
+        return false;
+      })
+    : credentials;
   const filtered = allCreds.filter((c) => {
     const matchesTab =
       activeTab === "all" ||

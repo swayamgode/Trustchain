@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CREDENTIAL_TYPES } from "../../lib/data";
 import { useTrustChain, type BulkRecordInput } from "../../context/TrustChainContext";
+import { sendCredentialEmail, generateMailtoUrl, type DispatchedEmail } from "../../lib/emailService";
 import {
   IssueIcon,
   CheckCircleIcon,
@@ -17,11 +18,12 @@ import StatusBadge from "../ui/StatusBadge";
 
 const STEPS = ["Credential Type", "Recipient Details", "Review & Sign", "Anchored"];
 
-const SAMPLE_CSV = `Alex Chen,did:trust:student-mu-8841,Bachelor of Science in Computer Science,School of Engineering,3.94,First Class Honours
-Dr. Sarah Lin,did:trust:student-mu-9014,Doctor of Medicine (M.D.),Faculty of Medicine,3.98,Board Certified Honors
-Elena Rostova,did:trust:student-mu-5512,Master of Science in Cybersecurity,Center for Cryptography,3.91,Summa Cum Laude
-Marcus Vance,did:trust:student-mu-3390,Bachelor of Business Administration,School of Management,3.85,Magna Cum Laude
-Priya Patel,did:trust:student-mu-7721,Bachelor of Science in Data Science,School of Engineering,3.96,Distinction in AI`;
+const SAMPLE_CSV = `student_id,name,email,course,semester,marks_obtained,maximum_marks,percentage,marksheet_file
+MU2026101,Rahul Sharma,rahul.sharma@mu.edu,AI&DS,5,450,600,75.0,https://drive.google.com/file/d/1wzV3qO7BaYAYknOTPdHXADZPc6xV5j5y/view?usp=drive_link
+MU2026102,Priya Patil,priya.patil@mu.edu,AI&DS,5,486,600,81.0,https://drive.google.com/file/d/1TCPRzpWT7cKmJuJKUgagB6rDGA8tOJje/view?usp=drive_link
+MU2026103,Aman Shah,aman.shah@mu.edu,AI&DS,5,414,600,69.0,https://drive.google.com/file/d/1JV00nebHEaXzTUlKjSDpShIUKaCTWW27/view?usp=drive_link
+MU2026104,Sneha Joshi,sneha.joshi@mu.edu,AI&DS,5,528,600,88.0,https://drive.google.com/file/d/1Zp8GjiXhfwfMGAYnd2FM7P5xPT9K5-Nx/view?usp=drive_link
+MU2026105,Karan Mehta,karan.mehta@mu.edu,AI&DS,5,396,600,66.0,https://drive.google.com/file/d/1R7VQWEzcrZFdBJLV6KF7HspzFzoLMGSW/view?usp=drive_link`;
 
 const PRESETS = [
   {
@@ -31,6 +33,7 @@ const PRESETS = [
     department: "School of Design & Creative Technologies",
     subjectName: "Bhavik Jain",
     subjectId: "did:trust:student-lead-7721",
+    recipientEmail: "bhavik.jain@alumni.edu",
     honours: "Distinction with Live Project Excellence",
     gpa: "4.00 / 4.00",
   },
@@ -41,6 +44,7 @@ const PRESETS = [
     department: "School of Engineering & Applied Sciences",
     subjectName: "Alex Chen",
     subjectId: "did:trust:student-mu-8841",
+    recipientEmail: "alex.chen@metropolitan.edu",
     honours: "First Class Honours (Summa Cum Laude)",
     gpa: "3.94 / 4.00",
   },
@@ -51,6 +55,7 @@ const PRESETS = [
     department: "Faculty of Medicine & Clinical Sciences",
     subjectName: "Dr. Sarah Lin",
     subjectId: "did:trust:doc-mu-9014",
+    recipientEmail: "sarah.lin@med.metropolitan.edu",
     honours: "Board Certified Clinical Honors",
     gpa: "3.98 / 4.00",
   },
@@ -61,6 +66,7 @@ const PRESETS = [
     department: "Center for Cryptographic Infrastructure",
     subjectName: "David Vance",
     subjectId: "did:trust:cyber-mu-4421",
+    recipientEmail: "david.vance@student.mu.edu",
     honours: "Distinction in Zero-Trust Systems",
     gpa: "4.00 / 4.00",
   },
@@ -79,6 +85,8 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
     department: "School of Engineering & Applied Sciences",
     subjectName: "Alex Chen",
     subjectId: "did:trust:student-mu-8841",
+    recipientEmail: "alex.chen@metropolitan.edu",
+    sendEmailNotification: true,
     honours: "First Class Honours (Summa Cum Laude)",
     gpa: "3.94 / 4.00",
     issueDate: new Date().toISOString().slice(0, 10),
@@ -88,6 +96,8 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
   const [issuedCred, setIssuedCred] = useState<any>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string>("/lead_certificate_bg.jpg");
+  const [dispatchedEmail, setDispatchedEmail] = useState<DispatchedEmail | null>(null);
+  const [previewEmailModal, setPreviewEmailModal] = useState<DispatchedEmail | null>(null);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,26 +114,124 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
 
   // Bulk Issuance State
   const [csvText, setCsvText] = useState(SAMPLE_CSV);
+  const [bulkImage, setBulkImage] = useState<string>("/lead_certificate_bg.jpg");
   const [bulkProgress, setBulkProgress] = useState(0);
   const [bulkSigning, setBulkSigning] = useState(false);
   const [bulkIssuedResults, setBulkIssuedResults] = useState<any[] | null>(null);
+  const [bulkSendEmail, setBulkSendEmail] = useState(true);
+  const [bulkEmailsDispatched, setBulkEmailsDispatched] = useState(0);
+
+  const handleCsvFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setCsvText(event.target.result as string);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleBulkImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setBulkImage(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const parseCsvRows = (text: string): BulkRecordInput[] => {
-    return text
+    const rawLines = text
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => {
-        const parts = line.split(",").map((p) => p.trim());
-        return {
-          subjectName: parts[0] || "Unknown Student",
-          subjectId: parts[1] || `did:trust:student-${Math.floor(1000 + Math.random() * 9000)}`,
-          title: parts[2] || "Institutional Degree",
-          department: parts[3] || "Academic Affairs",
-          gpa: parts[4] || "3.80",
-          honours: parts[5] || "Honors",
+      .filter((line) => line.length > 0);
+
+    if (rawLines.length === 0) return [];
+
+    const firstLine = rawLines[0].toLowerCase();
+    const hasHeader =
+      firstLine.includes("name") ||
+      firstLine.includes("student_id") ||
+      firstLine.includes("course") ||
+      firstLine.includes("email");
+
+    const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
+    const headerCols = hasHeader
+      ? rawLines[0].split(",").map((c) => c.trim().toLowerCase())
+      : [];
+
+    return dataLines.map((line, idx) => {
+      const parts = line.split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
+
+      if (hasHeader) {
+        const getCol = (...names: string[]) => {
+          for (const name of names) {
+            const index = headerCols.findIndex((h) => h === name || h.includes(name));
+            if (index !== -1 && parts[index] !== undefined && parts[index] !== "") {
+              return parts[index];
+            }
+          }
+          return "";
         };
-      });
+
+        const studentId = getCol("student_id", "id", "did") || `MU2026${100 + idx}`;
+        const name = getCol("name", "student_name") || `Student ${idx + 1}`;
+        const email =
+          getCol("email", "student_email", "mail", "recipient_email") ||
+          `${name.toLowerCase().replace(/[^a-z0-9]/g, ".") || "student"}@mu.edu`;
+        const course = getCol("course", "degree", "title") || "Academic Degree";
+        const semester = getCol("semester", "sem");
+        const percentage = getCol("percentage", "percent");
+        const marksObtained = getCol("marks_obtained", "marks");
+        const maxMarks = getCol("maximum_marks", "max");
+        const marksheet = getCol("marksheet_file", "file", "url", "image") || bulkImage;
+
+        const title = semester ? `${course} — Semester ${semester}` : course;
+        const gpa = percentage
+          ? `${percentage}%${marksObtained && maxMarks ? ` (${marksObtained}/${maxMarks})` : ""}`
+          : "3.80 / 4.00";
+        const honours =
+          percentage && parseFloat(percentage) >= 75
+            ? "Distinction Honours"
+            : percentage && parseFloat(percentage) >= 60
+            ? "First Class Honours"
+            : "Honours";
+
+        return {
+          subjectName: name,
+          subjectId: studentId.startsWith("did:trust:")
+            ? studentId
+            : `did:trust:student-${studentId.toLowerCase()}`,
+          recipientEmail: email,
+          title,
+          department: `School of ${course} & Applied Sciences`,
+          gpa,
+          honours,
+          documentImage: marksheet,
+        };
+      }
+
+      const emailCandidate = parts.find((p) => p.includes("@"));
+      const fallbackEmail = `${(parts[0] || "student").toLowerCase().replace(/[^a-z0-9]/g, ".")}@mu.edu`;
+
+      return {
+        subjectName: parts[0] || "Unknown Student",
+        subjectId: parts[1] || `did:trust:student-${Math.floor(1000 + Math.random() * 9000)}`,
+        recipientEmail: emailCandidate || fallbackEmail,
+        title: parts[2] || "Institutional Degree",
+        department: parts[3] || "Academic Affairs",
+        gpa: parts[4] || "3.80",
+        honours: parts[5] || "Honors",
+        documentImage: parts[6] || bulkImage,
+      };
+    });
   };
 
   const parsedBulkRows = parseCsvRows(csvText);
@@ -131,14 +239,52 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
   const handleBulkIssue = () => {
     setBulkSigning(true);
     setBulkProgress(0);
+    setBulkEmailsDispatched(0);
     let p = 0;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       p += 20;
       setBulkProgress(Math.min(p, 100));
       if (p >= 100) {
         clearInterval(interval);
-        const results = issueBulkCredentials(parsedBulkRows);
+        const results = issueBulkCredentials(
+          parsedBulkRows.map((r) => ({
+            ...r,
+            documentImage: r.documentImage || bulkImage,
+          }))
+        );
         setBulkIssuedResults(results);
+
+        if (bulkSendEmail) {
+          let count = 0;
+          for (const r of results) {
+            if (r.recipientEmail) {
+              const verificationUrl = typeof window !== "undefined"
+                ? `${window.location.origin}/?verify=${r.id}`
+                : `https://trustchain.network/verify/${r.id}`;
+              await sendCredentialEmail({
+                to: r.recipientEmail,
+                studentName: r.subjectName,
+                credentialTitle: r.type,
+                institutionName: r.issuingInstitution,
+                credentialId: r.id,
+                verificationUrl,
+                subjectId: r.subjectId,
+                department: r.department,
+                honours: r.honours,
+                gpa: r.gpa,
+                issueDate: r.issueDate,
+                fingerprint: r.fingerprint,
+                txRef: r.txRef,
+                proofMethod: r.proofMethod,
+                trustRegistryRef: r.trustRegistryRef,
+                documentImage: r.documentImage,
+              });
+              count++;
+            }
+          }
+          setBulkEmailsDispatched(count);
+        }
+
         setBulkSigning(false);
       }
     }, 250);
@@ -151,6 +297,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
       department: preset.department,
       subjectName: preset.subjectName,
       subjectId: preset.subjectId,
+      recipientEmail: preset.recipientEmail,
       honours: preset.honours,
       gpa: preset.gpa,
     });
@@ -160,7 +307,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
     setSigning(true);
     setSignProgress(0);
     let p = 0;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       p += 25;
       setSignProgress(Math.min(p, 100));
       if (p >= 100) {
@@ -169,6 +316,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
           type: selectedType,
           subjectName: formData.subjectName,
           subjectId: formData.subjectId,
+          recipientEmail: formData.recipientEmail,
           title: formData.title,
           department: formData.department,
           honours: formData.honours,
@@ -176,6 +324,32 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
           documentImage: uploadedImage,
         });
         setIssuedCred(result);
+
+        if (formData.sendEmailNotification && formData.recipientEmail) {
+          const verificationUrl = typeof window !== "undefined"
+            ? `${window.location.origin}/?verify=${result.id}`
+            : `https://trustchain.network/verify/${result.id}`;
+          const sent = await sendCredentialEmail({
+            to: formData.recipientEmail,
+            studentName: formData.subjectName,
+            credentialTitle: result.type,
+            institutionName: result.issuingInstitution,
+            credentialId: result.id,
+            verificationUrl,
+            subjectId: result.subjectId,
+            department: result.department,
+            honours: result.honours,
+            gpa: result.gpa,
+            issueDate: result.issueDate,
+            fingerprint: result.fingerprint,
+            txRef: result.txRef,
+            proofMethod: result.proofMethod,
+            trustRegistryRef: result.trustRegistryRef,
+            documentImage: result.documentImage,
+          });
+          setDispatchedEmail(sent);
+        }
+
         setTimeout(() => {
           setSigning(false);
           setStep(3);
@@ -240,7 +414,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
       {mode === "bulk" && (
         <div className="space-y-6 animate-fade-in">
           <Card className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E8E9E5]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8E9E5]">
               <div>
                 <h2 className="text-[17px] font-bold text-[#101418]">
                   Bulk Batch Credential Generator (CSV)
@@ -249,13 +423,59 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                   Colleges can issue certificates to an entire graduating cohort in seconds. Each student receives an individual cryptographic signature.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setCsvText(SAMPLE_CSV)}
-              >
-                Reset Sample Cohort (5 Students)
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <label className="cursor-pointer">
+                  <span className="px-3 py-1.5 text-[12px] font-semibold bg-white hover:bg-[#F2F3EF] border border-[#E8E9E5] rounded-[8px] transition-all inline-flex items-center gap-1.5 shadow-2xs">
+                    📁 Upload .CSV File
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv,text/plain"
+                    onChange={handleCsvFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCsvText(SAMPLE_CSV)}
+                >
+                  Reset Sample (5 Students)
+                </Button>
+              </div>
+            </div>
+
+            {/* Batch Certificate Template Image */}
+            <div className="p-3.5 rounded-[12px] bg-[#F7F7F4] border border-[#E8E9E5] flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-14 h-11 rounded-[8px] overflow-hidden border border-[#D9DCD5] shrink-0 bg-white shadow-2xs">
+                  <img
+                    src={bulkImage}
+                    alt="Cohort Diploma Preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold text-[#101418] truncate">
+                    Cohort Certificate Template Scan
+                  </div>
+                  <div className="text-[11px] text-[#626971]">
+                    Applied as the official background photo for every certificate in this batch
+                  </div>
+                </div>
+              </div>
+
+              <label className="cursor-pointer shrink-0">
+                <span className="px-3 py-1.5 text-[12px] font-semibold bg-white hover:bg-[#F2F3EF] border border-[#E8E9E5] rounded-[8px] transition-all shadow-2xs">
+                  Upload Template Scan
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBulkImageChange}
+                  className="hidden"
+                />
+              </label>
             </div>
 
             <div>
@@ -276,28 +496,52 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                 <span className="text-[12px] font-bold uppercase tracking-wider text-[#8A9097]">
                   Parsed Students in Batch ({parsedBulkRows.length})
                 </span>
+                <span className="text-[11px] font-semibold text-[#159447] bg-[#E8F8E8] px-2.5 py-0.5 rounded-full border border-[#CEF0CE]">
+                  ✉️ Email Dispatch Ready
+                </span>
               </div>
               <div className="overflow-x-auto border border-[#E8E9E5] rounded-[12px]">
                 <table className="w-full text-left text-[12px]">
                   <thead className="bg-[#F7F7F4] text-[#8A9097] text-[10px] font-bold uppercase border-b border-[#E8E9E5]">
                     <tr>
                       <th className="py-2.5 px-4">Student Name</th>
+                      <th className="py-2.5 px-4">Recipient Email</th>
                       <th className="py-2.5 px-4">Student ID / DID</th>
                       <th className="py-2.5 px-4">Degree / Certificate</th>
                       <th className="py-2.5 px-4">Faculty</th>
-                      <th className="py-2.5 px-4">GPA</th>
-                      <th className="py-2.5 px-4">Honours</th>
+                      <th className="py-2.5 px-4">GPA / Marks</th>
+                      <th className="py-2.5 px-4">Marksheet Document</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E8E9E5]">
                     {parsedBulkRows.map((r, i) => (
                       <tr key={i} className="hover:bg-[#F7F7F4]">
                         <td className="py-2.5 px-4 font-semibold text-[#101418]">{r.subjectName}</td>
+                        <td className="py-2.5 px-4">
+                          <span className="text-[11px] font-mono text-[#1E3A8A] bg-[#EFF6FF] px-2 py-0.5 rounded-[6px] border border-[#BFDBFE] inline-flex items-center gap-1">
+                            <span>✉️</span>
+                            <span>{r.recipientEmail}</span>
+                          </span>
+                        </td>
                         <td className="py-2.5 px-4 font-mono text-[11px] text-[#626971]">{r.subjectId}</td>
                         <td className="py-2.5 px-4 text-[#101418]">{r.title}</td>
                         <td className="py-2.5 px-4 text-[#626971]">{r.department}</td>
                         <td className="py-2.5 px-4 font-semibold text-[#159447]">{r.gpa}</td>
-                        <td className="py-2.5 px-4 text-[#626971]">{r.honours}</td>
+                        <td className="py-2.5 px-4">
+                          {r.documentImage?.startsWith("http") ? (
+                            <a
+                              href={r.documentImage}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[#1764C0] hover:underline font-mono text-[11px] inline-flex items-center gap-1 bg-[#EBF3FC] px-2 py-0.5 rounded-[6px]"
+                            >
+                              <span>Drive File</span>
+                              <span>↗</span>
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-[#8A9097]">Template Image</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -308,7 +552,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
             {bulkSigning && (
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between text-[12px] font-semibold text-[#101418]">
-                  <span>Cryptographically signing {parsedBulkRows.length} certificates with root key...</span>
+                  <span>Cryptographically signing {parsedBulkRows.length} certificates & dispatching emails...</span>
                   <span>{bulkProgress}%</span>
                 </div>
                 <div className="w-full bg-[#E8E9E5] rounded-full h-2 overflow-hidden">
@@ -320,7 +564,19 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
               </div>
             )}
 
-            <div className="pt-3 flex justify-end gap-3">
+            <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#E8E9E5]">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={bulkSendEmail}
+                  onChange={(e) => setBulkSendEmail(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#111410] focus:ring-[#BEF52A]"
+                />
+                <span className="text-[13px] font-semibold text-[#101418]">
+                  ✉️ Automatically email official certificate & verification link to all students in batch
+                </span>
+              </label>
+
               <Button
                 variant="primary"
                 size="lg"
@@ -345,6 +601,43 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
               <p className="text-[13px] text-[#626971]">
                 Each certificate is now verifiable by recruiters. Students can view their documents with shareable QR codes in the Student Portal.
               </p>
+
+              <div className="bg-[#E8F8E8] border border-[#CEF0CE] rounded-[12px] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-[13px] font-bold text-[#159447]">
+                  <span>✉️</span>
+                  <span>
+                    {bulkEmailsDispatched > 0
+                      ? `${bulkEmailsDispatched} Official Credential Notification Emails Successfully Dispatched to Students!`
+                      : "Batch Anchored Successfully (Email notifications skipped)"}
+                  </span>
+                </div>
+                {bulkEmailsDispatched > 0 && bulkIssuedResults[0] && (
+                  <button
+                    onClick={() => {
+                      const first = bulkIssuedResults[0];
+                      const verificationUrl = typeof window !== "undefined"
+                        ? `${window.location.origin}/?verify=${first.id}`
+                        : `https://trustchain.network/verify/${first.id}`;
+                      setPreviewEmailModal({
+                        id: `bulk-preview-${first.id}`,
+                        to: first.recipientEmail || "student@mu.edu",
+                        studentName: first.subjectName,
+                        credentialTitle: first.type,
+                        institutionName: first.issuingInstitution,
+                        credentialId: first.id,
+                        verificationUrl,
+                        subject: `Official Verifiable Credential: ${first.type}`,
+                        previewHtml: "",
+                        status: "delivered",
+                        timestamp: new Date().toISOString(),
+                      });
+                    }}
+                    className="text-[12px] font-bold text-[#159447] underline cursor-pointer shrink-0"
+                  >
+                    Preview Sample Student Email →
+                  </button>
+                )}
+              </div>
 
               <div className="flex gap-3">
                 {onNavigate && (
@@ -499,6 +792,35 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                       </div>
                     </div>
 
+                    {/* Recipient Email Field */}
+                    <div>
+                      <label className="block text-[12px] font-bold uppercase tracking-wider text-[#626971] mb-1 flex items-center justify-between">
+                        <span>Recipient Student Email</span>
+                        <span className="text-[11px] font-semibold text-[#159447] lowercase">official notification inbox</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.recipientEmail}
+                        onChange={(e) => setFormData({ ...formData, recipientEmail: e.target.value })}
+                        placeholder="student@university.edu"
+                        className="w-full h-[42px] px-3.5 rounded-[10px] bg-[#F7F7F4] border border-[#E8E9E5] text-[14px] text-[#101418] focus:bg-white focus:outline-none focus:border-[#A9DF16]"
+                      />
+                    </div>
+
+                    {/* Email Dispatch Checkbox */}
+                    <div className="p-3 rounded-[10px] bg-[#EFF6FF] border border-[#BFDBFE] flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        id="sendEmailCheck"
+                        checked={formData.sendEmailNotification}
+                        onChange={(e) => setFormData({ ...formData, sendEmailNotification: e.target.checked })}
+                        className="w-4 h-4 rounded text-[#111410] focus:ring-[#BEF52A]"
+                      />
+                      <label htmlFor="sendEmailCheck" className="text-[12px] font-semibold text-[#1E3A8A] cursor-pointer">
+                        ✉️ Automatically dispatch verifiable certificate & QR access link to student email upon signing
+                      </label>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[12px] font-bold uppercase tracking-wider text-[#626971] mb-1">
@@ -601,6 +923,11 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                     <div className="text-[12px] text-[#626971] pt-1">
                       {formData.department}
                     </div>
+                    {formData.recipientEmail && (
+                      <div className="text-[11px] font-mono text-[#1E3A8A] bg-[#EFF6FF] px-2 py-0.5 rounded-full inline-block mt-2 border border-[#BFDBFE]">
+                        ✉️ {formData.recipientEmail}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -621,10 +948,32 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                 </p>
               </div>
 
+              {/* Review summary with email */}
+              <div className="bg-[#F7F7F4] rounded-[14px] p-4 border border-[#E8E9E5] space-y-2.5 text-[13px]">
+                <div className="flex justify-between">
+                  <span className="text-[#8A9097]">Student Name:</span>
+                  <strong className="text-[#101418]">{formData.subjectName}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8A9097]">Student Email:</span>
+                  <span className="font-mono text-[#1E3A8A] font-semibold">{formData.recipientEmail || "Not specified"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8A9097]">Document Title:</span>
+                  <span className="text-[#101418] font-bold">{formData.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#8A9097]">Notification Action:</span>
+                  <span className="text-[#159447] font-semibold">
+                    {formData.sendEmailNotification ? "✉️ Immediate student email dispatch active" : "Email skipped"}
+                  </span>
+                </div>
+              </div>
+
               {signing && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-[12px] font-semibold text-[#101418]">
-                    <span>Signing with institutional root keypair...</span>
+                    <span>Signing with institutional root keypair & dispatching email...</span>
                     <span>{signProgress}%</span>
                   </div>
                   <div className="w-full bg-[#E8E9E5] rounded-full h-2 overflow-hidden">
@@ -668,6 +1017,72 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                 </p>
               </div>
 
+              {/* Email dispatch banner */}
+              {formData.recipientEmail && (
+                <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-[14px] p-4 text-left space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xl">✉️</span>
+                      <div>
+                        <div className="text-[13px] font-bold text-[#1E3A8A]">
+                          Official Certificate Dispatched via Email
+                        </div>
+                        <div className="text-[11px] font-mono text-[#2563EB]">
+                          Delivered to: <strong>{formData.recipientEmail}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-bold text-[#159447] bg-[#E8F8E8] px-2.5 py-0.5 rounded-full border border-[#CEF0CE]">
+                      ✓ Delivered
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-[#DBEAFE]">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        const verificationUrl = typeof window !== "undefined"
+                          ? `${window.location.origin}/?verify=${issuedCred?.id}`
+                          : `https://trustchain.network/verify/${issuedCred?.id}`;
+                        setPreviewEmailModal(
+                          dispatchedEmail || {
+                            id: `preview-${issuedCred?.id}`,
+                            to: formData.recipientEmail,
+                            studentName: formData.subjectName,
+                            credentialTitle: issuedCred?.type || formData.title,
+                            institutionName: activeInstitution.name,
+                            credentialId: issuedCred?.id || "",
+                            verificationUrl,
+                            subject: `Official Verifiable Credential: ${issuedCred?.type || formData.title}`,
+                            previewHtml: "",
+                            status: "delivered",
+                            timestamp: new Date().toISOString(),
+                          }
+                        );
+                      }}
+                    >
+                      ✉️ Preview Delivered Email
+                    </Button>
+                    <a
+                      href={generateMailtoUrl({
+                        to: formData.recipientEmail,
+                        studentName: formData.subjectName,
+                        credentialTitle: issuedCred?.type || formData.title,
+                        institutionName: activeInstitution.name,
+                        credentialId: issuedCred?.id || "",
+                        verificationUrl: typeof window !== "undefined"
+                          ? `${window.location.origin}/?verify=${issuedCred?.id}`
+                          : `https://trustchain.network/verify/${issuedCred?.id}`,
+                      })}
+                      className="px-3 py-1.5 rounded-[8px] bg-white hover:bg-[#F2F3EF] border border-[#DBEAFE] text-[12px] font-semibold text-[#1E3A8A] inline-flex items-center gap-1.5 transition-all shadow-2xs"
+                    >
+                      <span>Open in Mail Client</span>
+                      <span>↗</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-[#F7F7F4] rounded-[14px] p-4 border border-[#E8E9E5] text-left space-y-2 text-[12px]">
                 <div className="flex justify-between">
                   <span className="text-[#8A9097]">Student:</span>
@@ -701,6 +1116,75 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
               </div>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Email Preview Modal */}
+      {previewEmailModal && (
+        <div className="fixed inset-0 bg-[#101418]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-[20px] max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E8E9E5]">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✉️</span>
+                <div>
+                  <h3 className="text-[17px] font-bold text-[#101418]">
+                    Student Notification Email Preview
+                  </h3>
+                  <p className="text-[12px] text-[#626971]">
+                    Recipient: <strong className="font-mono text-[#101418]">{previewEmailModal.to}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewEmailModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-[#F2F3EF] flex items-center justify-center text-[#626971] text-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-[#F7F7F4] p-3 rounded-[10px] text-[12px] space-y-1 text-[#626971] border border-[#E8E9E5]">
+              <div><strong>From:</strong> registrar@{activeInstitution.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.edu (TrustChain Verified Issuer)</div>
+              <div><strong>To:</strong> {previewEmailModal.to} ({previewEmailModal.studentName})</div>
+              <div><strong>Subject:</strong> {previewEmailModal.subject}</div>
+            </div>
+
+            <div className="border border-[#E8E9E5] rounded-[14px] overflow-hidden bg-white">
+              {previewEmailModal.previewHtml ? (
+                <div
+                  className="p-4"
+                  dangerouslySetInnerHTML={{ __html: previewEmailModal.previewHtml }}
+                />
+              ) : (
+                <div className="p-6 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-[#EFFBCB] text-[#172000] flex items-center justify-center mx-auto text-xl font-bold">
+                    🏛️
+                  </div>
+                  <h4 className="font-bold text-[18px] text-[#101418]">{activeInstitution.name}</h4>
+                  <p className="text-[13px] text-[#626971]">
+                    Official Verifiable Credential conferred to <strong>{previewEmailModal.studentName}</strong>
+                  </p>
+                  <div className="bg-[#F7F7F4] p-3 rounded-[10px] text-[12px] font-mono text-[#101418] border border-[#E8E9E5]">
+                    {previewEmailModal.credentialTitle}
+                  </div>
+                  <a
+                    href={previewEmailModal.verificationUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block px-5 py-2.5 rounded-[10px] bg-[#111410] text-[#BEF52A] font-bold text-[13px]"
+                  >
+                    View & Verify Credential on Student Portal →
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button variant="secondary" size="md" onClick={() => setPreviewEmailModal(null)}>
+                Close Preview
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
