@@ -13,6 +13,8 @@ import {
 } from "../ui/Icons";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
+import StatusBadge from "../ui/StatusBadge";
+import LedgerCrossValidationModal from "../ui/LedgerCrossValidationModal";
 
 interface VerifyScreenProps {
   onNavigate?: (screen: string) => void;
@@ -56,6 +58,8 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
   const [uploadedFileHash, setUploadedFileHash] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "found" | "notfound">("idle");
   const singleFileInputRef = useRef<HTMLInputElement>(null);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [ledgerTargetId, setLedgerTargetId] = useState<string | undefined>(undefined);
 
   // Bulk Verification State
   const [bulkItems, setBulkItems] = useState<BulkVerifyItem[]>([]);
@@ -661,9 +665,14 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           <Card className="space-y-5">
             {/* Manual ID Input */}
             <div>
-              <label className="text-[12px] font-bold uppercase tracking-wider text-[#8A9097] block mb-2">
-                Credential ID / DID / Verification Link
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[12px] font-bold uppercase tracking-wider text-[#8A9097]">
+                  Credential ID / DID / Verification Link
+                </label>
+                <span className="text-[11px] text-[#626971]">
+                  Try pasting an ID from Registry or Student Portal
+                </span>
+              </div>
               <div className="flex flex-col sm:flex-row gap-3">
                 <input
                   type="text"
@@ -681,6 +690,18 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
                   icon={<VerifyIcon className="w-4 h-4 text-[#BEF52A]" />}
                 >
                   {verifying ? "Verifying..." : "Verify Certificate"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => {
+                    setLedgerTargetId(inputDid.trim() || undefined);
+                    setShowLedgerModal(true);
+                  }}
+                  icon={<ShieldCheckIcon className="w-4 h-4 text-[#111410]" />}
+                  className="cursor-pointer font-bold shrink-0"
+                >
+                  Cross-Validate Ledger
                 </Button>
               </div>
             </div>
@@ -943,6 +964,7 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           )}
         </div>
       )}
+
 
       {/* ========================================================= */}
       {/* TAB 2: BULK MULTI-UPLOAD VERIFICATION (PDF & JPG)          */}
@@ -1353,6 +1375,15 @@ export default function VerifyScreen({ onNavigate }: VerifyScreenProps) {
           </div>
         </div>
       )}
+
+      {/* Ledger Cross-Validation Modal */}
+      <LedgerCrossValidationModal
+        isOpen={showLedgerModal}
+        onClose={() => setShowLedgerModal(false)}
+        targetCredentialId={ledgerTargetId}
+        uploadedImageHash={uploadedFileHash || undefined}
+      />
     </div>
   );
 }
+

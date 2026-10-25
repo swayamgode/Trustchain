@@ -6,6 +6,7 @@ import { SearchIcon, CopyIcon, ShieldCheckIcon, CheckCircleIcon, AlertCircleIcon
 import Card from "../ui/Card";
 import StatusBadge from "../ui/StatusBadge";
 import Button from "../ui/Button";
+import LedgerCrossValidationModal from "../ui/LedgerCrossValidationModal";
 
 const EVENT_TYPES = [
   { key: "all", label: "All Audit Events" },
@@ -22,6 +23,8 @@ export default function AuditScreen({ onNavigate }: { onNavigate?: (screen: stri
   const [filterType, setFilterType] = useState("all");
   const [search, setSearch] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [selectedTargetId, setSelectedTargetId] = useState<string | undefined>(undefined);
 
   const filtered = auditEvents.filter((e) => {
     const matchesType = filterType === "all" || e.type === filterType;
@@ -57,7 +60,7 @@ export default function AuditScreen({ onNavigate }: { onNavigate?: (screen: stri
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {onNavigate && (
             <Button
               variant="secondary"
@@ -67,6 +70,18 @@ export default function AuditScreen({ onNavigate }: { onNavigate?: (screen: stri
               Consortium Blocks & Ledger →
             </Button>
           )}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setSelectedTargetId(undefined);
+              setShowLedgerModal(true);
+            }}
+            icon={<ShieldCheckIcon className="w-4 h-4 text-[#BEF52A]" />}
+            className="font-bold cursor-pointer shadow-xs"
+          >
+            Cross-Validate Ledger
+          </Button>
           <StatusBadge status="healthy" label="Consensus Finality Confirmed" />
         </div>
       </div>
@@ -113,6 +128,7 @@ export default function AuditScreen({ onNavigate }: { onNavigate?: (screen: stri
                 <th className="py-3 px-5">Cryptographic Action</th>
                 <th className="py-3 px-5">Tx Hash</th>
                 <th className="py-3 px-5">Outcome</th>
+                <th className="py-3 px-5 text-right">Ledger Validation</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8E9E5]">
@@ -157,12 +173,31 @@ export default function AuditScreen({ onNavigate }: { onNavigate?: (screen: stri
                       {evt.outcome.toUpperCase()}
                     </span>
                   </td>
+                  <td className="py-3.5 px-5 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => {
+                        const targetId = evt.related?.match(/cred-[^)\s]+/)?.[0] || evt.related || evt.txRef;
+                        setSelectedTargetId(targetId);
+                        setShowLedgerModal(true);
+                      }}
+                      className="px-2.5 py-1 rounded-[8px] bg-[#111410] hover:bg-[#282C27] text-[#BEF52A] text-[11px] font-bold cursor-pointer transition-all shadow-2xs"
+                    >
+                      ⚡ Validate
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Card>
+
+      {/* Ledger Cross-Validation Modal */}
+      <LedgerCrossValidationModal
+        isOpen={showLedgerModal}
+        onClose={() => setShowLedgerModal(false)}
+        targetCredentialId={selectedTargetId}
+      />
     </div>
   );
 }
