@@ -26,8 +26,7 @@ export default function Sidebar({ activeScreen, onNavigate }: SidebarProps) {
     switch (role) {
       case "student":
         return [
-          { id: "student", label: "My Certificates & Scans", icon: CredentialsIcon, badge: "QR" },
-          { id: "registry", label: "Public Anchor Registry", icon: OverviewIcon },
+          { id: "student", label: "My Certificates & Scans", icon: CredentialsIcon, badge: "Private" },
         ];
       case "recruiter":
         return [

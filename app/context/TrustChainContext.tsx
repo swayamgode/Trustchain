@@ -35,6 +35,7 @@ export interface UserSession {
 export interface BulkRecordInput {
   subjectName: string;
   subjectId: string;
+  recipientEmail?: string;
   title: string;
   department: string;
   gpa: string;
@@ -47,7 +48,7 @@ interface TrustChainContextType {
   setActiveRole: (role: UserRole) => void;
   currentUser: UserSession | null;
   isLoggedIn: boolean;
-  loginAs: (role: UserRole) => void;
+  loginAs: (role: UserRole, customUser?: Partial<UserSession>) => void;
   logout: () => void;
   institutions: Institution[];
   issuers: Issuer[];
@@ -66,6 +67,7 @@ interface TrustChainContextType {
     type: string;
     subjectName: string;
     subjectId: string;
+    recipientEmail?: string;
     title: string;
     department?: string;
     honours?: string;
@@ -190,6 +192,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-lead-7721",
     subjectName: "Bhavik Jain",
+    recipientEmail: "bhavik.jain@alumni.edu",
     issueDate: "2024-02-18",
     status: "active",
     fingerprint: "0x5442660954426609ca751fb8682c956b8ee40b1a2c9f80cd4357067ce10ebc2f07c635dea5f9ab81dbb121307a68a6e398205c923edbd2455c934bf4f34ac1a711024756b735fd19d5ed72c84ba4e87bea5c6e2a0817e7ddaece9d8ccc86133f62b988ee",
@@ -206,6 +209,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-mu-8841",
     subjectName: "Alex Chen",
+    recipientEmail: "alex.chen@metropolitan.edu",
     issueDate: "2024-06-15",
     status: "active",
     fingerprint: "0xf4bba5a0f4bba5a06a8cdc11c8d556c22e1dc8b38c664364e3aec5d541f77f86a73ff677050068287b48e299da91654a38d99f3b9e2211ecfc6a885d53b3020eb1fb84ff17cc3eb07514b161eb5d2bd24aa5ad83a8ee24740e375e256c7fd096c2404b47",
@@ -222,6 +226,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-mu-9014",
     subjectName: "Dr. Sarah Lin",
+    recipientEmail: "sarah.lin@med.metropolitan.edu",
     issueDate: "2024-05-20",
     status: "active",
     fingerprint: "0x4611aff64611aff6d826d6477a7f5c949cb7c2e53ecc49325104cf83f35d75d01595fc21b7aa627ec9e2e8cf683b6f1c8a73956d2c881bba4ec0820be119085803518ea9a56634e6c7bebb3759f72184f80fa7d51a442e22bc9d5473ded5dac070ea4111",
@@ -238,6 +243,7 @@ const INITIAL_CREDENTIALS: Credential[] = [
     issuerId: "inst-001",
     subjectId: "did:trust:student-mu-4421",
     subjectName: "David K. Vance",
+    recipientEmail: "david.vance@student.mu.edu",
     issueDate: "2024-01-20",
     status: "revoked",
     revocationDate: "2024-10-12",
@@ -321,6 +327,8 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     if (typeof window !== "undefined") {
       try {
+        const savedCustom = localStorage.getItem("tc_auth_user");
+        if (savedCustom) return JSON.parse(savedCustom);
         const saved = localStorage.getItem("tc_auth_role") as UserRole | null;
         if (saved && DEFAULT_USERS[saved]) return DEFAULT_USERS[saved];
       } catch (e) {}
@@ -377,14 +385,16 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<SupabaseSyncStatus>("connecting");
   const [supabaseStatusMessage, setSupabaseStatusMessage] = useState<string>("Connecting to Supabase...");
 
-  const loginAs = (role: UserRole) => {
-    const user = DEFAULT_USERS[role];
+  const loginAs = (role: UserRole, customUser?: Partial<UserSession>) => {
+    const baseUser = DEFAULT_USERS[role];
+    const user: UserSession = customUser ? { ...baseUser, ...customUser } : baseUser;
     setCurrentUser(user);
     setActiveRole(role);
     setIsLoggedIn(true);
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem("tc_auth_role", role);
+        localStorage.setItem("tc_auth_user", JSON.stringify(user));
       } catch (e) {}
     }
   };
@@ -395,6 +405,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem("tc_auth_role");
+        localStorage.removeItem("tc_auth_user");
       } catch (e) {}
     }
   };
@@ -556,6 +567,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     type: string;
     subjectName: string;
     subjectId: string;
+    recipientEmail?: string;
     title: string;
     department?: string;
     honours?: string;
@@ -588,6 +600,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       issuerId: activeInstitution.id,
       subjectId: data.subjectId,
       subjectName: data.subjectName,
+      recipientEmail: data.recipientEmail,
       issueDate,
       status: "active",
       fingerprint,
@@ -644,6 +657,7 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         issuerId: activeInstitution.id,
         subjectId: r.subjectId,
         subjectName: r.subjectName,
+        recipientEmail: r.recipientEmail,
         issueDate,
         status: "active" as const,
         fingerprint,

@@ -42,6 +42,7 @@ export interface Credential {
   revocationDate?: string;
   revocationReason?: string;
   did: string;
+  recipientEmail?: string;
   documentImage?: string;
   documentImageHash?: string;
   department?: string;

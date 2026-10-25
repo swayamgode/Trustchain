@@ -163,6 +163,7 @@ export async function fetchCredentialsFromDb(): Promise<Credential[] | null> {
       revocationDate: row.revocation_date || undefined,
       revocationReason: row.revocation_reason || undefined,
       did: row.did,
+      recipientEmail: row.recipient_email || undefined,
       documentImage: row.document_image || undefined,
       documentImageHash: row.document_image_hash || undefined,
     }));
@@ -173,7 +174,7 @@ export async function fetchCredentialsFromDb(): Promise<Credential[] | null> {
 
 export async function saveCredentialToDb(cred: Credential): Promise<boolean> {
   try {
-    const { error } = await supabase.from("credentials").upsert({
+    const payload: any = {
       id: cred.id,
       type: cred.type,
       issuing_institution: cred.issuingInstitution,
@@ -193,7 +194,17 @@ export async function saveCredentialToDb(cred: Credential): Promise<boolean> {
       did: cred.did,
       document_image: cred.documentImage || null,
       document_image_hash: cred.documentImageHash || null,
-    });
+    };
+    if (cred.recipientEmail) {
+      payload.recipient_email = cred.recipientEmail;
+    }
+
+    const { error } = await supabase.from("credentials").upsert(payload);
+    if (error && error.message?.includes("recipient_email")) {
+      delete payload.recipient_email;
+      const { error: retryError } = await supabase.from("credentials").upsert(payload);
+      return !retryError;
+    }
     return !error;
   } catch {
     return false;

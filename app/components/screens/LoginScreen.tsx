@@ -9,19 +9,55 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
-  const { loginAs, supabaseSyncStatus } = useTrustChain();
+  const { loginAs, supabaseSyncStatus, credentials } = useTrustChain();
   const [activeTab, setActiveTab] = useState<"quick" | "form">("quick");
   const [selectedRole, setSelectedRole] = useState<UserRole>("issuer");
   const [email, setEmail] = useState("e.vance@metropolitan.edu");
   const [password, setPassword] = useState("••••••••••••");
+  const [quickStudentEmail, setQuickStudentEmail] = useState("bhavik.jain@alumni.edu");
+
+  const STUDENT_PRESETS = [
+    { name: "Bhavik Jain", email: "bhavik.jain@alumni.edu", note: "Course Completion" },
+    { name: "Alex Chen", email: "alex.chen@metropolitan.edu", note: "Computer Science B.S." },
+    { name: "Rahul Sharma", email: "rahul.sharma@mu.edu", note: "AI&DS Semester 5 (CSV Cohort)" },
+  ];
 
   const handleInstantLogin = (role: UserRole) => {
+    if (role === "student") {
+      const match = credentials.find(
+        (c) => c.recipientEmail?.toLowerCase() === quickStudentEmail.toLowerCase()
+      ) || STUDENT_PRESETS.find((p) => p.email === quickStudentEmail);
+      const studentName =
+        (match && "subjectName" in match ? match.subjectName : (match as any)?.name) ||
+        quickStudentEmail.split("@")[0].replace(".", " ");
+      loginAs("student", {
+        email: quickStudentEmail,
+        name: studentName,
+        avatarLetter: studentName.slice(0, 2).toUpperCase(),
+      });
+      onLoginSuccess("student");
+      return;
+    }
     loginAs(role);
     onLoginSuccess(role);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedRole === "student") {
+      const match = credentials.find(
+        (c) => c.recipientEmail?.toLowerCase() === email.toLowerCase() ||
+               c.subjectId?.toLowerCase().includes(email.toLowerCase())
+      );
+      const studentName = match ? match.subjectName : email.split("@")[0].replace(".", " ");
+      loginAs("student", {
+        email,
+        name: studentName,
+        avatarLetter: studentName.slice(0, 2).toUpperCase(),
+      });
+      onLoginSuccess("student");
+      return;
+    }
     loginAs(selectedRole);
     onLoginSuccess(selectedRole);
   };
@@ -171,14 +207,32 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                     Student / Graduate
                   </h3>
                   <div className="text-[13px] font-semibold text-[#2563EB] mt-0.5">
-                    Bhavik Jain • Alex Chen
+                    Individual Private Vault
                   </div>
                   <p className="text-[13px] text-[#626971] mt-2 leading-relaxed">
-                    Access your authentic physical degree photocopy scans, view clean verification QR codes, and share instant tamper-proof proofs with recruiters.
+                    Access your authentic degree documents and share live verification QR codes. Strict privacy controls ensure you only see your own credentials.
                   </p>
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-[#E8E9E5] text-[12px] text-[#4B5563]">
+                {/* Persona Email Selector */}
+                <div className="bg-[#EFF6FF] border border-[#BFDBFE] p-3 rounded-[12px] space-y-1.5">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[#1E3A8A]">
+                    Select Student Account (Test Privacy):
+                  </label>
+                  <select
+                    value={quickStudentEmail}
+                    onChange={(e) => setQuickStudentEmail(e.target.value)}
+                    className="w-full text-[12px] font-bold text-[#101418] bg-white border border-[#BFDBFE] rounded-[8px] p-2 focus:outline-none cursor-pointer"
+                  >
+                    {STUDENT_PRESETS.map((p) => (
+                      <option key={p.email} value={p.email}>
+                        {p.name} ({p.email}) — {p.note}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2 pt-1 border-t border-[#E8E9E5] text-[12px] text-[#4B5563]">
                   <div className="flex items-center gap-2">
                     <CheckCircleIcon className="w-4 h-4 text-[#2563EB] shrink-0" />
                     <span>View Official Scanned Degree Photocopies</span>
@@ -189,7 +243,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircleIcon className="w-4 h-4 text-[#2563EB] shrink-0" />
-                    <span>Zero-Knowledge Self-Sovereign Identity</span>
+                    <span className="font-semibold text-[#1E3A8A]">Strict Privacy: Only your documents visible</span>
                   </div>
                 </div>
               </div>
@@ -198,7 +252,7 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                 onClick={() => handleInstantLogin("student")}
                 className="w-full py-3.5 px-4 rounded-[12px] bg-[#111410] hover:bg-[#282C27] text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer group-hover:scale-[1.02]"
               >
-                <span>⚡ 1-Click Login as Student</span>
+                <span>⚡ 1-Click Login as {STUDENT_PRESETS.find(p => p.email === quickStudentEmail)?.name || "Student"}</span>
                 <ArrowRightIcon className="w-4 h-4 text-[#93C5FD]" />
               </button>
             </div>
