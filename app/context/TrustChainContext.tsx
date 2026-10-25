@@ -80,6 +80,8 @@ interface TrustChainContextType {
     honours?: string;
     gpa?: string;
     documentImage?: string;
+    isBulk?: boolean;
+    issuanceMethod?: "single" | "bulk";
   }) => Credential;
   issueBulkCredentials: (records: BulkRecordInput[]) => Credential[];
   revokeCredential: (credentialId: string, reason: string) => boolean;
@@ -222,6 +224,8 @@ const INITIAL_CREDENTIALS: Credential[] = [
     trustRegistryRef: "block-#1,402,892",
     did: "did:trust:cred-2024-LEAD-08819",
     documentImage: "/lead_certificate_bg.jpg",
+    isBulk: true,
+    issuanceMethod: "bulk",
   },
   {
     id: "cred-2024-MU-00192",
@@ -239,6 +243,8 @@ const INITIAL_CREDENTIALS: Credential[] = [
     trustRegistryRef: "block-#1,402,881",
     did: "did:trust:cred-2024-MU-00192",
     documentImage: "/sample_degree.jpg",
+    isBulk: false,
+    issuanceMethod: "single",
   },
   {
     id: "cred-2024-MU-00812",
@@ -815,6 +821,8 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     honours?: string;
     gpa?: string;
     documentImage?: string;
+    isBulk?: boolean;
+    issuanceMethod?: "single" | "bulk";
   }) => {
     const credId = `cred-${new Date().getFullYear()}-${activeInstitution.name.split(" ").map((w: string) => w[0]).join("")}-${Math.floor(10000 + Math.random() * 90000)}`;
     const issueDate = new Date().toISOString().slice(0, 10);
@@ -854,6 +862,8 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
       department: data.department,
       gpa: data.gpa,
       honours: data.honours,
+      isBulk: data.isBulk ?? false,
+      issuanceMethod: data.issuanceMethod || "single",
     };
 
     setCredentials((prev) => [newCred, ...prev]);
@@ -976,10 +986,12 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         proofMethod: "Ed25519Signature2020",
         trustRegistryRef: `block-#${blockNum}`,
         did: `did:trust:${credId}`,
-        documentImage: r.documentImage || "/sample_degree.jpg",
+        documentImage: r.documentImage || "/lead_certificate_bg.jpg",
         department: r.department,
         gpa: r.gpa,
         honours: r.honours,
+        isBulk: true,
+        issuanceMethod: "bulk",
       };
     });
 

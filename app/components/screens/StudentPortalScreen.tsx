@@ -37,7 +37,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
     myCredentials.find((c) => c.id === selectedCertId) ||
     myCredentials[0];
 
-  const degreePhoto = selectedCert?.documentImage || "/lead_certificate_bg.jpg";
+  const degreePhoto = selectedCert?.documentImage || "/sample_degree.jpg";
 
   const verificationUrl = typeof window !== "undefined"
     ? `${window.location.origin}/?verify=${selectedCert?.id}`
@@ -208,6 +208,8 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                         status: selectedCert.status as any,
                         documentImage: selectedCert.documentImage,
                         gpa: selectedCert.gpa,
+                        isBulk: selectedCert.isBulk,
+                        issuanceMethod: selectedCert.issuanceMethod,
                       }}
                       verificationUrl={verificationUrl}
                       onInspectFull={() => setShowFullscreenPhoto(true)}
@@ -438,6 +440,8 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
                   status: selectedCert.status as any,
                   documentImage: selectedCert.documentImage,
                   gpa: selectedCert.gpa,
+                  isBulk: selectedCert.isBulk,
+                  issuanceMethod: selectedCert.issuanceMethod,
                 }}
                 verificationUrl={verificationUrl}
                 showInspectButton={false}

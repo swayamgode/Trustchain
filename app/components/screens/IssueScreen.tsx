@@ -95,7 +95,7 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
   const [signProgress, setSignProgress] = useState(0);
   const [issuedCred, setIssuedCred] = useState<any>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [uploadedImage, setUploadedImage] = useState<string>("/lead_certificate_bg.jpg");
+  const [uploadedImage, setUploadedImage] = useState<string>("/sample_degree.jpg");
   const [dispatchedEmail, setDispatchedEmail] = useState<DispatchedEmail | null>(null);
   const [previewEmailModal, setPreviewEmailModal] = useState<DispatchedEmail | null>(null);
 
@@ -322,14 +322,21 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
           honours: formData.honours,
           gpa: formData.gpa,
           documentImage: uploadedImage,
+          isBulk: false,
+          issuanceMethod: "single",
         });
         setIssuedCred(result);
+
+        // Transition immediately so user is never stuck waiting on network/SMTP
+        setSigning(false);
+        setStep(3);
 
         if (formData.sendEmailNotification && formData.recipientEmail) {
           const verificationUrl = typeof window !== "undefined"
             ? `${window.location.origin}/?verify=${result.id}`
             : `https://trustchain.network/verify/${result.id}`;
-          const sent = await sendCredentialEmail({
+
+          sendCredentialEmail({
             to: formData.recipientEmail,
             studentName: formData.subjectName,
             credentialTitle: result.type,
@@ -346,16 +353,12 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
             proofMethod: result.proofMethod,
             trustRegistryRef: result.trustRegistryRef,
             documentImage: result.documentImage,
-          });
-          setDispatchedEmail(sent);
+          })
+            .then((sent) => setDispatchedEmail(sent))
+            .catch(() => {});
         }
-
-        setTimeout(() => {
-          setSigning(false);
-          setStep(3);
-        }, 300);
       }
-    }, 250);
+    }, 200);
   };
 
   const handleCopy = (text: string, key: string) => {

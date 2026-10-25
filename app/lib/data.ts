@@ -48,6 +48,8 @@ export interface Credential {
   department?: string;
   gpa?: string;
   honours?: string;
+  isBulk?: boolean;
+  issuanceMethod?: "single" | "bulk";
 }
 
 export interface AuditEvent {

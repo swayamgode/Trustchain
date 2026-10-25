@@ -38,17 +38,21 @@ export async function sendCredentialEmail(params: {
 
   let previewHtml = "";
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
     const res = await fetch("/api/send-credential-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       previewHtml = data.previewHtml;
     }
   } catch (e) {
-    // Fallback if offline
+    // Fallback if offline or timeout
   }
 
   if (!previewHtml) {

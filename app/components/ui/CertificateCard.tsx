@@ -15,6 +15,8 @@ export interface CertificateData {
   documentImage?: string;
   signature?: string;
   gpa?: string;
+  isBulk?: boolean;
+  issuanceMethod?: "single" | "bulk";
 }
 
 interface CertificateCardProps {
@@ -25,10 +27,15 @@ interface CertificateCardProps {
 }
 
 function getCertificateImageSrc(url?: string): string {
-  if (!url) return "/lead_certificate_bg.jpg";
-  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) {
-    return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
+  if (!url) return "/sample_degree.jpg";
+  if (url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("/")) {
+    return url;
+  }
+  if (url.includes("drive.google.com")) {
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) {
+      return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1600`;
+    }
   }
   return url;
 }
@@ -39,20 +46,20 @@ export default function CertificateCard({
   onInspectFull,
   showInspectButton = true,
 }: CertificateCardProps) {
-  const [imgLoadError, setImgLoadError] = useState(false);
   const [hasEmbeddedQr, setHasEmbeddedQr] = useState(false);
   const [showQrOverlay, setShowQrOverlay] = useState(true);
   const isDriveLink = Boolean(cert.documentImage?.includes("drive.google.com"));
 
-  // Only treat as raw standalone physical photo if it's a direct image file, NOT a Drive link, and loads successfully
-  const isDirectPhoto =
-    !isDriveLink &&
-    !imgLoadError &&
-    Boolean(cert.documentImage) &&
-    cert.documentImage !== "/lead_certificate_bg.jpg" &&
-    ((cert.documentImage?.startsWith("data:image/") ||
-      cert.documentImage?.startsWith("/") ||
-      cert.documentImage?.match(/\.(jpg|jpeg|png|webp|svg)$/i)) ?? false);
+  // The generated course completion template is strictly reserved for bulk issuance batches or drive marksheet records.
+  // Normal / single issuance MUST ALWAYS display the uploaded certificate photocopy!
+  const isBulkTemplate = Boolean(
+    cert.isBulk === true ||
+    cert.issuanceMethod === "bulk" ||
+    isDriveLink ||
+    cert.documentImage === "/lead_certificate_bg.jpg"
+  );
+
+  const imageSrc = getCertificateImageSrc(cert.documentImage);
 
   const cleanSubjectId = cert.subjectId
     ? cert.subjectId.replace("did:trust:", "").replace("student-", "").toUpperCase()
@@ -71,14 +78,18 @@ export default function CertificateCard({
       ctx.drawImage(img, 0, 0, w, h);
       import("jsqr")
         .then(({ default: jsQR }) => {
-          const imgData = ctx.getImageData(0, 0, w, h);
-          const found = jsQR(imgData.data, imgData.width, imgData.height);
-          if (found && found.data) {
-            setHasEmbeddedQr(true);
-            // Hide the duplicate overlay so there is only 1 QR code!
-            setShowQrOverlay(false);
-          } else {
-            setHasEmbeddedQr(false);
+          try {
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const found = jsQR(imgData.data, imgData.width, imgData.height);
+            if (found && found.data) {
+              setHasEmbeddedQr(true);
+              // Hide the duplicate overlay so there is only 1 QR code!
+              setShowQrOverlay(false);
+            } else {
+              setHasEmbeddedQr(false);
+              setShowQrOverlay(true);
+            }
+          } catch {
             setShowQrOverlay(true);
           }
         })
@@ -94,19 +105,16 @@ export default function CertificateCard({
     <div className="bg-white border-2 border-[#111410] rounded-[24px] p-4 shadow-lg overflow-hidden group transition-all">
       {/* Certificate Frame */}
       <div className="relative rounded-[16px] overflow-hidden border border-[#D9DCD5] aspect-[4/3] w-full select-none shadow-inner bg-[#FAF8F5]">
-        {isDirectPhoto ? (
-          /* 1. ACTUAL DIRECT UPLOADED DOCUMENT PHOTOCOPY */
-          <div className="relative w-full h-full flex items-center justify-center">
+        {!isBulkTemplate ? (
+          /* 1. ACTUAL DIRECT UPLOADED DOCUMENT PHOTOCOPY (NORMAL ISSUANCE) */
+          <div className="relative w-full h-full flex items-center justify-center bg-[#FAF8F5]">
             <img
-              src={getCertificateImageSrc(cert.documentImage)}
+              key={cert.id + "_" + (cert.documentImage?.slice(0, 30) || "img")}
+              src={imageSrc}
               alt={cert.type || "Official Issued Certificate"}
               className="w-full h-full object-cover"
-              crossOrigin="anonymous"
               onLoad={(e) => {
                 checkImageForEmbeddedQr(e.currentTarget);
-              }}
-              onError={() => {
-                setImgLoadError(true);
               }}
             />
 

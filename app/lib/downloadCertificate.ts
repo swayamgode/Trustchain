@@ -189,8 +189,63 @@ async function captureWithHtml2Canvas(element: HTMLElement): Promise<HTMLCanvasE
     backgroundColor: "#ffffff",
     logging: false,
     imageTimeout: 8000,
-    onclone: (_doc: Document, clone: HTMLElement) => {
+    onclone: (clonedDoc: Document, clone: HTMLElement) => {
+      // 1. Remove elements marked to ignore
       clone.querySelectorAll("[data-html2canvas-ignore]").forEach((el) => el.remove());
+
+      // 2. Helper to normalize modern CSS lab()/oklab() colors into browser-supported hex/rgb
+      const canvasHelper = clonedDoc.createElement("canvas");
+      const ctx = canvasHelper.getContext("2d");
+
+      const normalizeColor = (val: string): string => {
+        if (!val || typeof val !== "string") return val;
+        if (!val.includes("lab(") && !val.includes("oklab(") && !val.includes("color(")) {
+          return val;
+        }
+        if (ctx) {
+          try {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillStyle = val;
+            return ctx.fillStyle; // Native browser canvas resolves lab/oklab to hex or rgb!
+          } catch {
+            return "#101418";
+          }
+        }
+        return "#101418";
+      };
+
+      // 3. Sanitize style tags in clonedDoc
+      clonedDoc.querySelectorAll("style").forEach((styleEl) => {
+        if (styleEl.textContent && (styleEl.textContent.includes("lab(") || styleEl.textContent.includes("oklab("))) {
+          styleEl.textContent = styleEl.textContent
+            .replace(/oklab\([^)]+\)/g, "#101418")
+            .replace(/lab\([^)]+\)/g, "#101418");
+        }
+      });
+
+      // 4. Intercept getComputedStyle in cloned window
+      const win = clonedDoc.defaultView || window;
+      if (win && win.getComputedStyle) {
+        const origGetComputedStyle = win.getComputedStyle;
+        win.getComputedStyle = function (el: Element, pseudo?: string | null) {
+          const style = origGetComputedStyle.call(this, el, pseudo);
+          return new Proxy(style, {
+            get(target, prop: string | symbol) {
+              const value = (target as any)[prop];
+              if (typeof value === "function") {
+                return value.bind(target);
+              }
+              if (
+                typeof value === "string" &&
+                (value.includes("lab(") || value.includes("oklab(") || value.includes("color("))
+              ) {
+                return normalizeColor(value);
+              }
+              return value;
+            },
+          });
+        };
+      }
     },
   });
 }
