@@ -142,3 +142,26 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Custom spacing utilities not available in Tailwind v4 */
+.p-4\.5 { padding: 18px; }
+.ring-3 {
+  --tw-ring-shadow: 0 0 0 3px var(--tw-ring-color);
+  box-shadow: var(--tw-ring-shadow);
+}
+.ring-3.ring-\[\#BEF52A\] {
+  --tw-ring-color: #BEF52A;
+}
+.ring-3.ring-\[\#CEF0CE\] {
+  --tw-ring-color: #CEF0CE;
+}
+.ring-3.ring-\[\#F9CBC5\] {
+  --tw-ring-color: #F9CBC5;
+}
+
+/* Chain link connector animation */
+@keyframes chainPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.chain-link { animation: chainPulse 2s ease-in-out infinite; }

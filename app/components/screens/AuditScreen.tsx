@@ -13,6 +13,7 @@ const EVENT_TYPES = [
   { key: "issuer_authorization", label: "1b. Issuer Authorization" },
   { key: "credential_issuance", label: "2. Record Issuance" },
   { key: "credential_verification", label: "3. Cross-Org Verification" },
+  { key: "cross_college_validation", label: "3b. Cross-College Consortium" },
   { key: "credential_revocation", label: "4. Revocation Events" },
 ];
 
@@ -56,7 +57,16 @@ export default function AuditScreen({ onNavigate }: { onNavigate?: (screen: stri
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
+          {onNavigate && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onNavigate("cross-validation")}
+            >
+              Consortium Blocks & Ledger →
+            </Button>
+          )}
           <StatusBadge status="healthy" label="Consensus Finality Confirmed" />
         </div>
       </div>

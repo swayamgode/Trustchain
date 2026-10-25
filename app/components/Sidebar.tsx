@@ -11,6 +11,7 @@ import {
   NetworkIcon,
   ShieldCheckIcon,
   AuditIcon,
+  BlocksIcon,
 } from "./ui/Icons";
 import { useTrustChain, type UserRole } from "../context/TrustChainContext";
 
@@ -31,11 +32,13 @@ export default function Sidebar({ activeScreen, onNavigate }: SidebarProps) {
       case "recruiter":
         return [
           { id: "verify", label: "Candidate Verification", icon: VerifyIcon, badge: "Live" },
+          { id: "cross-validation", label: "Cross-College Ledger", icon: BlocksIcon, badge: "New" },
           { id: "audit", label: "Cryptographic Proof Audit", icon: AuditIcon },
         ];
       case "network":
         return [
           { id: "network", label: "Validator Node Network", icon: NetworkIcon },
+          { id: "cross-validation", label: "Cross-College Ledger", icon: BlocksIcon, badge: "Live" },
           { id: "institutions", label: "Institutional Keys", icon: InstitutionsIcon },
           { id: "audit", label: "Global Ledger", icon: AuditIcon },
           { id: "overview", label: "Network Telemetry", icon: OverviewIcon },
@@ -45,6 +48,7 @@ export default function Sidebar({ activeScreen, onNavigate }: SidebarProps) {
         return [
           { id: "overview", label: "College Overview", icon: OverviewIcon },
           { id: "issue", label: "Issue Degrees & Bulk CSV", icon: IssueIcon, badge: "Issue" },
+          { id: "cross-validation", label: "Cross-College Ledger", icon: BlocksIcon, badge: "New" },
           { id: "registry", label: "Credentials Registry", icon: CredentialsIcon },
           { id: "revocation", label: "Revocation Manager", icon: RevocationIcon },
           { id: "institutions", label: "Institutions & Keys", icon: InstitutionsIcon },

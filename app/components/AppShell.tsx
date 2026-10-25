@@ -16,6 +16,7 @@ const InstitutionsScreen = dynamic(() => import("./screens/InstitutionsScreen"),
 const RevocationScreen = dynamic(() => import("./screens/RevocationScreen"), { ssr: false });
 const AuditScreen = dynamic(() => import("./screens/AuditScreen"), { ssr: false });
 const NetworkScreen = dynamic(() => import("./screens/NetworkScreen"), { ssr: false });
+const CrossValidationScreen = dynamic(() => import("./screens/CrossValidationScreen"), { ssr: false });
 const SettingsScreen = dynamic(() => import("./screens/SettingsScreen"), { ssr: false });
 
 function AppShellContent() {
@@ -68,6 +69,8 @@ function AppShellContent() {
         return <AuditScreen onNavigate={setActiveScreen} />;
       case "network":
         return <NetworkScreen onNavigate={setActiveScreen} />;
+      case "cross-validation":
+        return <CrossValidationScreen onNavigate={setActiveScreen} />;
       case "settings":
         return <SettingsScreen />;
       default:

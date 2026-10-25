@@ -6,7 +6,14 @@ import {
   type Issuer,
   type Credential,
   type AuditEvent,
+  type ConsortiumLedgerRecord,
+  type BlockchainBlock,
+  type CollegePeerValidation,
 } from "../lib/data";
+import {
+  INITIAL_LEDGER_RECORDS,
+  INITIAL_BLOCKCHAIN_BLOCKS,
+} from "../lib/consortiumData";
 import { computeSha256, generateEd25519Signature } from "../lib/crypto";
 import {
   checkSupabaseConnection,
@@ -99,6 +106,20 @@ interface TrustChainContextType {
     checks: { name: string; status: "pass" | "fail"; detail: string }[];
   }>;
   updateCredentialImageHash: (credentialId: string, imageHash: string) => Promise<boolean>;
+  ledgerRecords: ConsortiumLedgerRecord[];
+  blockchainBlocks: BlockchainBlock[];
+  updateFirstCollegeStatus: (
+    recordId: string,
+    status: "not_verified" | "verified_and_issued" | "fault",
+    issueReason?: string
+  ) => void;
+  peerCrossVerify: (
+    recordId: string,
+    collegeId: string,
+    collegeName: string,
+    status: "verified" | "fault",
+    reason?: string
+  ) => void;
 }
 
 const INITIAL_INSTITUTIONS: Institution[] = [
@@ -560,6 +581,47 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     }
     return INITIAL_AUDITS;
   });
+  const [ledgerRecords, setLedgerRecords] = useState<ConsortiumLedgerRecord[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_consortium_ledgers");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_LEDGER_RECORDS;
+  });
+  const [blockchainBlocks, setBlockchainBlocks] = useState<BlockchainBlock[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("tc_blockchain_blocks");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return INITIAL_BLOCKCHAIN_BLOCKS;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tc_consortium_ledgers", JSON.stringify(ledgerRecords));
+      } catch (e) {}
+    }
+  }, [ledgerRecords]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("tc_blockchain_blocks", JSON.stringify(blockchainBlocks));
+      } catch (e) {}
+    }
+  }, [blockchainBlocks]);
+
   const [activeInstitution, setActiveInstitution] = useState<Institution>(INITIAL_INSTITUTIONS[0]);
   const [selectedStudentDid, setSelectedStudentDid] = useState<string>("did:trust:student-lead-7721");
   const [supabaseSyncStatus, setSupabaseSyncStatus] = useState<SupabaseSyncStatus>("connecting");
@@ -813,6 +875,75 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     saveCredentialToDb(newCred);
     saveAuditEventToDb(audit);
 
+    // Also register newly issued credential in Consortium Ledger & mine a Block
+    const newBlockHeight = (blockchainBlocks[0]?.height || 1402886) + 1;
+    const newBlockHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+    const nowUtc = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+
+    const newLedgerRec: ConsortiumLedgerRecord = {
+      id: `rec-${Date.now().toString().slice(-4)}`,
+      credentialId: newCred.id,
+      studentName: newCred.subjectName,
+      studentId: newCred.subjectId,
+      degreeTitle: newCred.type,
+      department: newCred.department || "Academic Division",
+      gpa: newCred.gpa || "3.80",
+      firstCollegeId: activeInstitution.id,
+      firstCollegeName: activeInstitution.name,
+      firstCollegeStatus: "verified_and_issued",
+      firstCollegeReason: undefined,
+      firstCollegeTimestamp: nowUtc,
+      peerValidations: institutions
+        .filter((i) => i.name !== activeInstitution.name)
+        .slice(0, 2)
+        .map((inst) => ({
+          collegeId: inst.id,
+          collegeName: inst.name,
+          status: "pending",
+        })),
+      isUpdated: true,
+      isTampered: false,
+      blockNumber: newBlockHeight,
+      blockHash: newBlockHash,
+      prevBlockHash: blockchainBlocks[0]?.hash || "0x0000000000000000000000000000000000000000000000000000000000000000",
+      merkleRoot: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
+      txHash: newCred.txRef,
+      payloadHash: newCred.fingerprint,
+      documentImage: newCred.documentImage,
+      updatedAt: nowUtc,
+    };
+    setLedgerRecords((prev) => [newLedgerRec, ...prev]);
+
+    const newBlock: BlockchainBlock = {
+      height: newBlockHeight,
+      hash: newBlockHash,
+      prevHash: blockchainBlocks[0]?.hash || "0x0000000000000000000000000000000000000000000000000000000000000000",
+      merkleRoot: newLedgerRec.merkleRoot,
+      timestamp: nowUtc,
+      validatorNode: `${activeInstitution.name} Validator Node`,
+      validatorDid: activeInstitution.did,
+      signature: `ed25519:${activeInstitution.name.slice(0, 3).toLowerCase()}_${Date.now()}`,
+      nonce: Math.floor(1000 + Math.random() * 9000),
+      status: "verified",
+      recordId: newLedgerRec.id,
+      studentName: newLedgerRec.studentName,
+      credentialId: newLedgerRec.credentialId,
+      firstCollege: newLedgerRec.firstCollegeName,
+      firstCollegeStatus: "verified_and_issued",
+      issueReason: undefined,
+      peerEndorsements: newLedgerRec.peerValidations.map((p) => ({
+        collegeName: p.collegeName,
+        status: p.status,
+      })),
+      payloadHash: newLedgerRec.payloadHash,
+      rawPayload: {
+        studentName: newLedgerRec.studentName,
+        degree: newLedgerRec.degreeTitle,
+        action: "verified_and_issued",
+      },
+    };
+    setBlockchainBlocks((prev) => [newBlock, ...prev]);
+
     return newCred;
   };
 
@@ -930,6 +1061,208 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
     saveAuditEventToDb(audit);
 
     return true;
+  };
+
+  // 4b. Consortium Cross-Validation Ledger Actions
+  // When a school sets "verified_and_issued", it broadcasts to ALL ledger records
+  // sharing the same credentialId (every institution's ledger copy gets updated).
+  const updateFirstCollegeStatus = (
+    recordId: string,
+    status: "not_verified" | "verified_and_issued" | "fault",
+    issueReason?: string
+  ) => {
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+    const txRef = `0x${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+    const blockStatus: BlockchainBlock["status"] =
+      status === "fault" ? "fault" : status === "verified_and_issued" ? "verified" : "pending";
+
+    // Step 1: find the source record to get credentialId for broadcast
+    let broadcastCredentialId: string | null = null;
+    let sourceRec: ConsortiumLedgerRecord | undefined;
+
+    setLedgerRecords((prev) => {
+      sourceRec = prev.find((r) => r.id === recordId);
+      broadcastCredentialId = sourceRec?.credentialId ?? null;
+
+      return prev.map((rec) => {
+        // Update the target record; if verified_and_issued, also broadcast to same credential copies
+        const isTarget = rec.id === recordId;
+        const isSameCredential =
+          status === "verified_and_issued" &&
+          broadcastCredentialId &&
+          rec.credentialId === broadcastCredentialId &&
+          rec.id !== recordId;
+
+        if (!isTarget && !isSameCredential) return rec;
+
+        const isUpdated = status !== "not_verified";
+        const isTampered = status === "fault";
+
+        // Anchor block in blockchain
+        setBlockchainBlocks((prevBlocks) => {
+          const existingIdx = prevBlocks.findIndex((b) => b.recordId === rec.id);
+          const latestBlock = prevBlocks[0];
+          const newHeight =
+            existingIdx >= 0
+              ? prevBlocks[existingIdx].height
+              : latestBlock
+              ? latestBlock.height + 1
+              : 1402890;
+          const newHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+
+          const updatedBlock: BlockchainBlock = {
+            height: newHeight,
+            hash: newHash,
+            prevHash:
+              latestBlock?.hash ||
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+            merkleRoot: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
+            timestamp: now,
+            validatorNode: `${activeInstitution.name} Validator Node`,
+            validatorDid: activeInstitution.did,
+            signature: `ed25519:${activeInstitution.name.slice(0, 4).toLowerCase()}_${Date.now()}`,
+            nonce: Math.floor(1000 + Math.random() * 9000),
+            status: blockStatus,
+            recordId: rec.id,
+            studentName: rec.studentName,
+            credentialId: rec.credentialId,
+            firstCollege: rec.firstCollegeName,
+            firstCollegeStatus: status,
+            issueReason: status === "fault" ? issueReason : undefined,
+            peerEndorsements: rec.peerValidations.map((p) => ({
+              collegeName: p.collegeName,
+              status: p.status,
+              reason: p.reason,
+            })),
+            payloadHash: rec.payloadHash,
+            rawPayload: {
+              studentName: rec.studentName,
+              studentId: rec.studentId,
+              degreeTitle: rec.degreeTitle,
+              gpa: rec.gpa,
+              firstCollegeDecision: status,
+              broadcastFrom: isTarget ? rec.firstCollegeName : sourceRec?.firstCollegeName,
+              broadcastedAt: now,
+              issueReason: issueReason || "N/A",
+              timestamp: now,
+            },
+          };
+
+          if (existingIdx >= 0) {
+            const copy = [...prevBlocks];
+            copy[existingIdx] = updatedBlock;
+            return copy;
+          }
+          return [updatedBlock, ...prevBlocks];
+        });
+
+        // Log audit event for every record updated (target + broadcast copies)
+        const audit: AuditEvent = {
+          id: `audit-${Date.now()}-${rec.id}`,
+          type: "cross_college_validation",
+          actor: activeInstitution.did,
+          timestamp: now,
+          related: isSameCredential
+            ? `[BROADCAST] ${rec.firstCollegeName} ledger auto-updated: ${rec.studentName} (${rec.credentialId}) → ${status.toUpperCase()} (propagated from ${sourceRec?.firstCollegeName})`
+            : `${rec.studentName} (${rec.credentialId}) status set to ${status.toUpperCase()} by ${rec.firstCollegeName}${issueReason ? ` — Reason: ${issueReason}` : ""}`,
+          txRef,
+          outcome: status === "fault" ? "rejected" : status === "verified_and_issued" ? "success" : "alert",
+          details: isSameCredential
+            ? `Consortium ledger broadcast: verification anchored across all ${broadcastCredentialId} block copies.`
+            : `Consortium blockchain block anchored with First College disposition: ${status}.`,
+        };
+        setAuditEvents((prevAudits) => [audit, ...prevAudits]);
+
+        return {
+          ...rec,
+          firstCollegeStatus: status,
+          firstCollegeReason: status === "fault" ? issueReason : undefined,
+          firstCollegeTimestamp: status !== "not_verified" ? now : undefined,
+          isUpdated,
+          isTampered,
+          tamperDetails:
+            status === "fault"
+              ? `Fault flagged by ${rec.firstCollegeName}: ${issueReason}`
+              : undefined,
+          txHash: txRef,
+          updatedAt: now,
+        };
+      });
+    });
+  };
+
+  const peerCrossVerify = (
+    recordId: string,
+    collegeId: string,
+    collegeName: string,
+    status: "verified" | "fault",
+    reason?: string
+  ) => {
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC";
+    const txRef = `0x${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`;
+
+    setLedgerRecords((prev) =>
+      prev.map((rec) => {
+        if (rec.id !== recordId) return rec;
+
+        const updatedPeers = [...rec.peerValidations];
+        const existingIdx = updatedPeers.findIndex((p) => p.collegeId === collegeId || p.collegeName === collegeName);
+        const peerItem: CollegePeerValidation = {
+          collegeId,
+          collegeName,
+          status,
+          timestamp: now,
+          signature: `ed25519:${collegeName.slice(0, 3).toLowerCase()}_${Date.now()}`,
+          reason: status === "fault" ? reason : undefined,
+        };
+
+        if (existingIdx >= 0) {
+          updatedPeers[existingIdx] = peerItem;
+        } else {
+          updatedPeers.push(peerItem);
+        }
+
+        const anyFault = rec.firstCollegeStatus === "fault" || updatedPeers.some((p) => p.status === "fault");
+
+        // Update block peer endorsements
+        setBlockchainBlocks((prevBlocks) =>
+          prevBlocks.map((b) => {
+            if (b.recordId !== recordId) return b;
+            return {
+              ...b,
+              status: anyFault ? "fault" : b.status,
+              peerEndorsements: updatedPeers.map((p) => ({
+                collegeName: p.collegeName,
+                status: p.status,
+                reason: p.reason,
+              })),
+            };
+          })
+        );
+
+        // Audit event
+        const audit: AuditEvent = {
+          id: `audit-${Date.now()}`,
+          type: "cross_college_validation",
+          actor: `did:trust:${collegeId}`,
+          timestamp: now,
+          related: `Peer College ${collegeName} cross-validated ${rec.studentName} (${rec.credentialId}): ${status.toUpperCase()}${reason ? ` — Reason: ${reason}` : ""}`,
+          txRef,
+          outcome: status === "verified" ? "success" : "alert",
+          details: `Peer consensus block endorsement confirmed by ${collegeName}.`,
+        };
+        setAuditEvents((prevAudits) => [audit, ...prevAudits]);
+
+        return {
+          ...rec,
+          peerValidations: updatedPeers,
+          isUpdated: true,
+          isTampered: anyFault,
+          tamperDetails: anyFault ? (reason || rec.tamperDetails || "Peer college reported discrepancy during cross-verification") : undefined,
+          updatedAt: now,
+        };
+      })
+    );
   };
 
   // Helper to evaluate verification checks on a credential
@@ -1182,6 +1515,10 @@ export function TrustChainProvider({ children }: { children: React.ReactNode }) 
         verifyCredential,
         verifyCredentialAsync,
         updateCredentialImageHash,
+        ledgerRecords,
+        blockchainBlocks,
+        updateFirstCollegeStatus,
+        peerCrossVerify,
       }}
     >
       {children}
