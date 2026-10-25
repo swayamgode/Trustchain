@@ -40,6 +40,8 @@ export default function CertificateCard({
   showInspectButton = true,
 }: CertificateCardProps) {
   const [imgLoadError, setImgLoadError] = useState(false);
+  const [hasEmbeddedQr, setHasEmbeddedQr] = useState(false);
+  const [showQrOverlay, setShowQrOverlay] = useState(true);
   const isDriveLink = Boolean(cert.documentImage?.includes("drive.google.com"));
 
   // Only treat as raw standalone physical photo if it's a direct image file, NOT a Drive link, and loads successfully
@@ -56,6 +58,38 @@ export default function CertificateCard({
     ? cert.subjectId.replace("did:trust:", "").replace("student-", "").toUpperCase()
     : "";
 
+  const checkImageForEmbeddedQr = (img: HTMLImageElement) => {
+    try {
+      if (!img || img.naturalWidth === 0) return;
+      const canvas = document.createElement("canvas");
+      const w = Math.min(img.naturalWidth, 800);
+      const h = Math.min(img.naturalHeight, 600);
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, w, h);
+      import("jsqr")
+        .then(({ default: jsQR }) => {
+          const imgData = ctx.getImageData(0, 0, w, h);
+          const found = jsQR(imgData.data, imgData.width, imgData.height);
+          if (found && found.data) {
+            setHasEmbeddedQr(true);
+            // Hide the duplicate overlay so there is only 1 QR code!
+            setShowQrOverlay(false);
+          } else {
+            setHasEmbeddedQr(false);
+            setShowQrOverlay(true);
+          }
+        })
+        .catch(() => {
+          setShowQrOverlay(true);
+        });
+    } catch {
+      setShowQrOverlay(true);
+    }
+  };
+
   return (
     <div className="bg-white border-2 border-[#111410] rounded-[24px] p-4 shadow-lg overflow-hidden group transition-all">
       {/* Certificate Frame */}
@@ -68,38 +102,61 @@ export default function CertificateCard({
               alt={cert.type || "Official Issued Certificate"}
               className="w-full h-full object-cover"
               crossOrigin="anonymous"
+              onLoad={(e) => {
+                checkImageForEmbeddedQr(e.currentTarget);
+              }}
               onError={() => {
                 setImgLoadError(true);
               }}
             />
 
-            {/* Top-Right Pill Inspect Button */}
-            {showInspectButton && (
+            {/* Top-Right Control Buttons */}
+            <div
+              data-html2canvas-ignore="true"
+              className="absolute top-3.5 right-3.5 z-20 flex items-center gap-2"
+            >
+              {/* Toggle QR Overlay if certificate already has QR code or user wants to hide/show */}
               <button
-                data-html2canvas-ignore="true"
-                onClick={onInspectFull}
-                className="absolute top-3.5 right-3.5 z-20 bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                type="button"
+                onClick={() => setShowQrOverlay((prev) => !prev)}
+                className="bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                title={showQrOverlay ? "Hide digital TrustChain QR overlay" : "Show digital TrustChain QR overlay"}
               >
-                <span>🔍 Inspect Full Document</span>
+                <span>{showQrOverlay ? "🔲 Hide QR Overlay" : "🔲 Show TrustChain QR"}</span>
               </button>
-            )}
 
-            {/* Anchored Verification QR Code on the bottom-right corner */}
-            <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-xs p-2 rounded-[12px] border border-black/10 shadow-lg flex flex-col items-center select-none">
-              <QRCodeCanvas
-                value={verificationUrl}
-                size={74}
-                noFrame={true}
-              />
-              <div className="mt-1 text-center font-sans">
-                <div className="text-[7px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-none">
-                  SCAN TO VERIFY
-                </div>
-                <div className="text-[6.5px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-none mt-0.5">
-                  AUTHENTICATION
+              {showInspectButton && (
+                <button
+                  type="button"
+                  onClick={onInspectFull}
+                  className="bg-[#1E232A]/90 hover:bg-[#101418] text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                >
+                  <span>🔍 Inspect Full Document</span>
+                </button>
+              )}
+            </div>
+
+            {/* Anchored Verification QR Code on the bottom-right corner - only if showQrOverlay is true */}
+            {showQrOverlay && (
+              <div
+                data-trustchain-qr="true"
+                className="absolute bottom-3 right-3 bg-white p-2.5 rounded-[14px] border border-black/20 shadow-xl flex flex-col items-center select-none z-10 animate-fade-in"
+              >
+                <QRCodeCanvas
+                  value={verificationUrl}
+                  size={76}
+                  noFrame={true}
+                />
+                <div className="mt-1 text-center font-sans">
+                  <div className="text-[7px] font-black tracking-[0.14em] text-[#0F172A] uppercase leading-none">
+                    SCAN TO VERIFY
+                  </div>
+                  <div className="text-[6.5px] font-bold tracking-[0.16em] text-[#0F172A] uppercase leading-none mt-0.5">
+                    AUTHENTICATION
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         ) : (
           /* 2. DYNAMIC LEAD ACADEMY / GOLD HONORS CERTIFICATE TEMPLATE WITH STUDENT DETAILS */

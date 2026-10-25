@@ -145,12 +145,12 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column (7 cols): Document Presentation (Photocopy Scan or Digital) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-1 bg-white p-1 rounded-[10px] border border-[#E8E9E5]">
+            <div className="flex items-center gap-1 bg-white p-1 rounded-[10px] border border-[#E8E9E5] shrink-0">
               <button
                 onClick={() => setViewMode("photocopy")}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold whitespace-nowrap transition-all ${
                   viewMode === "photocopy"
                     ? "bg-[#111410] text-white"
                     : "text-[#626971] hover:text-[#101418]"
@@ -160,7 +160,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
               <button
                 onClick={() => setViewMode("digital")}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold whitespace-nowrap transition-all ${
                   viewMode === "digital"
                     ? "bg-[#111410] text-white"
                     : "text-[#626971] hover:text-[#101418]"
@@ -170,10 +170,11 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant="secondary"
                 size="sm"
+                className="whitespace-nowrap"
                 onClick={() => setShowDownloadModal(true)}
               >
                 ⬇ Download
@@ -181,6 +182,7 @@ export default function StudentPortalScreen({ onNavigate }: { onNavigate?: (scre
               <Button
                 variant="primary"
                 size="sm"
+                className="whitespace-nowrap"
                 icon={<span className="w-2 h-2 rounded-full bg-[#BEF52A]" />}
                 onClick={() => setShowShareModal(true)}
               >
