@@ -268,9 +268,15 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
                 institutionName: r.issuingInstitution,
                 credentialId: r.id,
                 verificationUrl,
+                subjectId: r.subjectId,
+                department: r.department,
                 honours: r.honours,
                 gpa: r.gpa,
                 issueDate: r.issueDate,
+                fingerprint: r.fingerprint,
+                txRef: r.txRef,
+                proofMethod: r.proofMethod,
+                trustRegistryRef: r.trustRegistryRef,
                 documentImage: r.documentImage,
               });
               count++;
@@ -330,9 +336,15 @@ export default function IssueScreen({ onNavigate }: { onNavigate?: (screen: stri
             institutionName: result.issuingInstitution,
             credentialId: result.id,
             verificationUrl,
+            subjectId: result.subjectId,
+            department: result.department,
             honours: result.honours,
             gpa: result.gpa,
             issueDate: result.issueDate,
+            fingerprint: result.fingerprint,
+            txRef: result.txRef,
+            proofMethod: result.proofMethod,
+            trustRegistryRef: result.trustRegistryRef,
             documentImage: result.documentImage,
           });
           setDispatchedEmail(sent);

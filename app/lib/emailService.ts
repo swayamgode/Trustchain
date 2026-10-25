@@ -19,10 +19,18 @@ export async function sendCredentialEmail(params: {
   institutionName: string;
   credentialId: string;
   verificationUrl: string;
+  subjectId?: string;
+  department?: string;
   honours?: string;
   gpa?: string;
   issueDate?: string;
   documentImage?: string;
+  txRef?: string;
+  fingerprint?: string;
+  proofMethod?: string;
+  trustRegistryRef?: string;
+  attachmentBase64?: string;
+  attachmentFilename?: string;
 }): Promise<DispatchedEmail> {
   const fallbackId = `email-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
   const timestamp = new Date().toISOString();

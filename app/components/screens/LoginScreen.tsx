@@ -14,19 +14,49 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [selectedRole, setSelectedRole] = useState<UserRole>("issuer");
   const [email, setEmail] = useState("e.vance@metropolitan.edu");
   const [password, setPassword] = useState("••••••••••••");
-  const [quickStudentEmail, setQuickStudentEmail] = useState("bhavik.jain@alumni.edu");
+  const [quickStudentEmail, setQuickStudentEmail] = useState("rahul.sharma@mu.edu");
 
-  const STUDENT_PRESETS = [
-    { name: "Bhavik Jain", email: "bhavik.jain@alumni.edu", note: "Course Completion" },
-    { name: "Alex Chen", email: "alex.chen@metropolitan.edu", note: "Computer Science B.S." },
-    { name: "Rahul Sharma", email: "rahul.sharma@mu.edu", note: "AI&DS Semester 5 (CSV Cohort)" },
-  ];
+  const STUDENT_PRESETS = React.useMemo(() => {
+    const list = [
+      { name: "Rahul Sharma", email: "rahul.sharma@mu.edu", note: "AI&DS Sem 5 (75%)" },
+      { name: "Priya Patil", email: "priya.patil@mu.edu", note: "AI&DS Sem 5 (81%)" },
+      { name: "Aman Shah", email: "aman.shah@mu.edu", note: "AI&DS Sem 5 (69%)" },
+      { name: "Sneha Joshi", email: "sneha.joshi@mu.edu", note: "AI&DS Sem 5 (88%)" },
+      { name: "Karan Mehta", email: "karan.mehta@mu.edu", note: "AI&DS Sem 5 (66%)" },
+      { name: "Neha Desai", email: "neha.desai@mu.edu", note: "AI&DS Sem 5 (77%)" },
+      { name: "Arjun Kulkarni", email: "arjun.kulkarni@mu.edu", note: "AI&DS Sem 5 (84%)" },
+      { name: "Isha Nair", email: "isha.nair@mu.edu", note: "AI&DS Sem 5 (72%)" },
+      { name: "Meera Singh", email: "meera.singh@mu.edu", note: "AI&DS Sem 5 (90%)" },
+      { name: "Bhavik Jain", email: "bhavik.jain@alumni.edu", note: "Course Completion" },
+      { name: "Alex Chen", email: "alex.chen@metropolitan.edu", note: "Computer Science B.S." },
+      { name: "Dr. Sarah Lin", email: "sarah.lin@med.metropolitan.edu", note: "Doctor of Medicine (M.D.)" },
+      { name: "David K. Vance", email: "david.vance@student.mu.edu", note: "Cloud Systems (Revoked)" },
+    ];
+
+    const map = new Map<string, { name: string; email: string; note: string }>();
+    list.forEach((s) => map.set(s.email.toLowerCase(), s));
+
+    credentials.forEach((c) => {
+      if (c.recipientEmail) {
+        const key = c.recipientEmail.toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            name: c.subjectName || key.split("@")[0],
+            email: c.recipientEmail,
+            note: c.type || "Issued Credential",
+          });
+        }
+      }
+    });
+
+    return Array.from(map.values());
+  }, [credentials]);
 
   const handleInstantLogin = (role: UserRole) => {
     if (role === "student") {
       const match = credentials.find(
         (c) => c.recipientEmail?.toLowerCase() === quickStudentEmail.toLowerCase()
-      ) || STUDENT_PRESETS.find((p) => p.email === quickStudentEmail);
+      ) || STUDENT_PRESETS.find((p) => p.email.toLowerCase() === quickStudentEmail.toLowerCase());
       const studentName =
         (match && "subjectName" in match ? match.subjectName : (match as any)?.name) ||
         quickStudentEmail.split("@")[0].replace(".", " ");
